@@ -84,6 +84,7 @@ try {
         case 'listar_emergencias':   listarEmergencias();    break;
         case 'reservar_emergencia':  reservarEmergencia();   break;
         case 'medico_toggle_emergencia': medicoToggleEmergencia(); break;
+        case 'medico_pagos':         medicoPagos();           break;
         default: jsonError('Accion no valida', 400);
     }
 } catch (Throwable $e) {
@@ -789,6 +790,41 @@ function listarEmergencias(): void {
         'd', [$mult]
     );
     jsonOk(fetchAll($stmt));
+}
+
+function medicoPagos(): void {
+    $medicoId = checkMedico();
+    $db = getDB();
+    $stmt = $db->prepare(
+        'SELECT r.id AS reserva_id, r.horario, r.confirmada_en, r.reembolsada_en,
+                r.monto_total, r.comision, r.monto_medico,
+                r.estado_pago, r.estado_consulta, r.estado_pago_medico,
+                r.metodo_pago,
+                p.nombre AS paciente, p.email AS email_paciente
+         FROM reservas r
+         JOIN pacientes p ON p.id = r.paciente_id
+         WHERE r.medico_id = ?
+         ORDER BY r.horario DESC'
+    );
+    $stmt->bind_param('i', $medicoId);
+    $stmt->execute();
+    $reservas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+    // Resumen agregado: total cobrado, en custodia, reembolsado, pendiente
+    $totales = ['cobrado'=>0.0, 'en_custodia'=>0.0, 'reembolsado'=>0.0, 'pendiente'=>0.0, 'comision_total'=>0.0];
+    foreach ($reservas as $r) {
+        $neto = (float)$r['monto_medico'];
+        $com  = (float)$r['comision'];
+        switch ($r['estado_pago']) {
+            case 'pagado':      $totales['cobrado']      += $neto; $totales['comision_total'] += $com; break;
+            case 'en_custodia': $totales['en_custodia']  += $neto; break;
+            case 'reembolsado': $totales['reembolsado']  += $neto; break;
+            default:            $totales['pendiente']    += $neto;
+        }
+    }
+    foreach ($totales as $k => $v) $totales[$k] = round($v, 2);
+
+    jsonOk(['totales' => $totales, 'reservas' => $reservas]);
 }
 
 function medicoToggleEmergencia(): void {

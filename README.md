@@ -197,6 +197,7 @@ Todas las respuestas son JSON con la forma `{ "ok": bool, "data"|"error": ... }`
 | POST | `medico_recuperar` | Generar password temporal por email |
 | POST | `confirmar_consulta` | Confirmar consulta (libera el pago) |
 | POST | `medico_toggle_emergencia` | Activar/desactivar disponibilidad para consultas de emergencia |
+| GET | `medico_pagos` | Historial de cobros, comisiones y reembolsos + totales agregados |
 
 ### Panel admin (auth: header `X-Admin-Token`)
 
@@ -320,7 +321,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [ ] **Fase 6B — Mercado Pago real** (authorize & capture con webhook)
 - [x] **Fase 6C — DKIM** activo (rspamd selector `mail`) + SPF y DMARC ya publicados en GoDaddy
 - [ ] **Fase 6D — Notificaciones WhatsApp** (WhatsApp Cloud API)
-- [ ] **Fase 6E — Historial de pagos** del médico en el portal
+- [x] **Fase 6E — Historial de pagos** del médico en el portal (pestaña "Mis pagos" con totales y tabla)
 - [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
 - [x] **Fase 6G — JWT con expiración** para auth admin y médico (HS256, 8h)
 - [x] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
