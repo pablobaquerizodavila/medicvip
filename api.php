@@ -81,6 +81,8 @@ try {
         case 'admin_eliminar_reserva': adminEliminarReserva(); break;
         case 'paciente_sala':        pacienteSala();         break;
         case 'enviar_recordatorios': enviarRecordatorios();   break;
+        case 'listar_emergencias':   listarEmergencias();    break;
+        case 'reservar_emergencia':  reservarEmergencia();   break;
         default: jsonError('Accion no valida', 400);
     }
 } catch (Throwable $e) {
@@ -707,6 +709,108 @@ function pacienteSala(): void {
     if (!$row) jsonError('Reserva no encontrada.', 404);
     if (!$row['sala_video']) jsonError('Esta reserva no tiene sala de video.', 404);
     jsonOk(['reserva_id'=>$row['id'],'horario'=>$row['horario'],'medico'=>$row['medico'],'especialidad'=>$row['especialidad'],'sala_video'=>$row['sala_video'],'sala_url'=>'https://meet.jit.si/'.$row['sala_video'],'estado_consulta'=>$row['estado_consulta'],'estado_pago'=>$row['estado_pago']]);
+}
+
+// ── EMERGENCIAS ───────────────────────────────────────────────────────────────
+function emergencyMultiplier(): float {
+    return defined('EMERGENCY_RATE_MULTIPLIER') ? (float)EMERGENCY_RATE_MULTIPLIER : 1.5;
+}
+
+function listarEmergencias(): void {
+    $mult = emergencyMultiplier();
+    $stmt = query(
+        'SELECT m.id, m.titulo, m.nombre, m.apellido, m.foto_perfil, e.especialidad, e.anos_experiencia, p.tarifa, ROUND(p.tarifa * ?, 2) AS tarifa_final
+         FROM medicos m
+         JOIN medico_especialidad e ON e.medico_id = m.id
+         JOIN medico_pago p ON p.medico_id = m.id
+         WHERE m.estado = "activo"
+         ORDER BY m.id DESC',
+        'd', [$mult]
+    );
+    jsonOk(fetchAll($stmt));
+}
+
+function reservarEmergencia(): void {
+    $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    foreach (['medico_id','nombre_paciente','email_paciente'] as $f)
+        if (empty($data[$f])) throw new Exception("Campo requerido: $f");
+    if (!filter_var($data['email_paciente'], FILTER_VALIDATE_EMAIL))
+        throw new Exception('Correo inválido.');
+
+    $db = getDB();
+
+    // upsert paciente
+    $row = fetchOne(query('SELECT id FROM pacientes WHERE email=?','s',[$data['email_paciente']]));
+    if ($row) {
+        $pacienteId = (int)$row['id'];
+    } else {
+        $tel = (string)($data['telefono_paciente'] ?? '');
+        $stmt = $db->prepare('INSERT INTO pacientes (nombre,email,telefono,edad) VALUES (?,?,?,0)');
+        $stmt->bind_param('sss', $data['nombre_paciente'], $data['email_paciente'], $tel);
+        $stmt->execute();
+        $pacienteId = (int)$db->insert_id;
+    }
+
+    $medicoId = (int)$data['medico_id'];
+    $pago = fetchOne(query('SELECT tarifa FROM medico_pago WHERE medico_id=?','i',[$medicoId]));
+    if (!$pago) throw new Exception('Médico no encontrado o sin tarifa.');
+
+    // Validar médico activo
+    $med = fetchOne(query('SELECT estado FROM medicos WHERE id=?','i',[$medicoId]));
+    if (!$med || $med['estado'] !== 'activo') throw new Exception('Médico no disponible para emergencias.');
+
+    $tarifaBase = (float)$pago['tarifa'];
+    $total      = round($tarifaBase * emergencyMultiplier(), 2);
+    $comision   = round($total * COMMISSION_RATE, 2);
+    $neto       = round($total - $comision, 2);
+    $motivo     = (string)($data['motivo']     ?? 'Emergencia');
+    $alergias   = (string)($data['alergias']   ?? '');
+    $metodoPago = (string)($data['metodo_pago']?? 'emergencia');
+    $horario    = date('Y-m-d H:i:s'); // ahora
+    $salaVideo   = 'medicnet-em-' . bin2hex(random_bytes(10));
+    $tokenAcceso = strtoupper(substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4));
+
+    $stmt = $db->prepare('INSERT INTO reservas (medico_id,paciente_id,horario,motivo,alergias,metodo_pago,monto_total,comision,monto_medico,estado_pago,limite_confirmacion,sala_video,token_acceso) VALUES (?,?,?,?,?,?,?,?,?,"en_custodia",DATE_ADD(NOW(),INTERVAL 2 HOUR),?,?)');
+    $stmt->bind_param('iissssdddss', $medicoId, $pacienteId, $horario, $motivo, $alergias, $metodoPago, $total, $comision, $neto, $salaVideo, $tokenAcceso);
+    $stmt->execute();
+    $reservaId = (int)$db->insert_id;
+    if (!$reservaId) throw new Exception('No se pudo crear la reserva de emergencia.');
+
+    $ins = $db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"custodia",?,"Pago de emergencia recibido en custodia")');
+    $ins->bind_param('id', $reservaId, $total);
+    $ins->execute();
+
+    // Email al paciente + médico (best-effort, no rompe la transacción si falla)
+    $medDat = fetchOne(query('SELECT m.nombre,m.apellido,m.titulo,m.email,e.especialidad FROM medicos m JOIN medico_especialidad e ON e.medico_id=m.id WHERE m.id=?','i',[$medicoId]));
+    if ($medDat) {
+        $nombreMedico = $medDat['titulo'].' '.$medDat['nombre'].' '.$medDat['apellido'];
+        emailReservaConfirmada([
+            'paciente'       => $data['nombre_paciente'],
+            'email_paciente' => $data['email_paciente'],
+            'medico'         => $nombreMedico,
+            'especialidad'   => $medDat['especialidad'],
+            'horario'        => $horario . ' (EMERGENCIA — ahora)',
+            'reserva_id'     => $reservaId,
+            'sala_video'     => $salaVideo,
+            'monto'          => number_format($total, 2),
+        ]);
+        emailNuevaReservaDoctor([
+            'medico_nombre' => $nombreMedico,
+            'email_medico'  => $medDat['email'],
+            'paciente'      => $data['nombre_paciente'],
+            'motivo'        => '🚨 EMERGENCIA: ' . ($motivo ?: 'No especificado'),
+            'horario'       => $horario,
+            'monto_medico'  => number_format($neto, 2),
+        ]);
+    }
+
+    jsonOk([
+        'reserva_id'   => $reservaId,
+        'sala_video'   => $salaVideo,
+        'token_acceso' => $tokenAcceso,
+        'monto_total'  => $total,
+        'mensaje'      => 'Reserva de emergencia creada. Conectándote al médico ahora.',
+    ]);
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────

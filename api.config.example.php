@@ -23,6 +23,7 @@ define('UPLOAD_URL', '/uploads/fotos/');
 
 // ── Negocio ──────────────────────────────────────────────────────────────────
 define('COMMISSION_RATE', 0.15); // 15% comisión plataforma
+define('EMERGENCY_RATE_MULTIPLIER', 1.5); // tarifa emergencia = tarifa normal × este factor
 
 // ── Credenciales del panel admin ─────────────────────────────────────────────
 define('ADMIN_USER', 'admin');
