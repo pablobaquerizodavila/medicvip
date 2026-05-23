@@ -298,6 +298,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - CORS restringido a `ALLOWED_ORIGINS` (en producción solo `medicvip.org`)
 - Datos de tarjetas NUNCA almacenados localmente (delegados a pasarela)
 - **Auth admin y médico vía JWT HS256** firmado con `JWT_SECRET`, expiración configurable (default 8h). Tokens incluyen `role`, `sub`, `iat`, `exp` y se validan con `hash_equals` para evitar timing attacks.
+- **Email saliente firmado con DKIM** (selector `mail`, RSA 2048-bit) vía rspamd local. SPF y DMARC publicados en GoDaddy (DMARC en modo `p=quarantine`).
 
 ---
 
@@ -317,7 +318,7 @@ Para crear un sitio nuevo similar (otro dominio):
 
 **Pendientes:**
 - [ ] **Fase 6B — Mercado Pago real** (authorize & capture con webhook)
-- [ ] **Fase 6C — DKIM/SPF/DMARC** para `noreply@medicvip.org`
+- [x] **Fase 6C — DKIM** activo (rspamd selector `mail`) + SPF y DMARC ya publicados en GoDaddy
 - [ ] **Fase 6D — Notificaciones WhatsApp** (WhatsApp Cloud API)
 - [ ] **Fase 6E — Historial de pagos** del médico en el portal
 - [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
