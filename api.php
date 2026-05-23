@@ -387,16 +387,58 @@ function guardarFotoBase64(string $base64, string $email): ?string {
     return file_put_contents(UPLOAD_DIR.$filename,$imgData)!==false ? UPLOAD_URL.$filename : null;
 }
 
+// ── JWT (HS256) ───────────────────────────────────────────────────────────────
+function jwtB64UrlEncode(string $data): string {
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+}
+function jwtB64UrlDecode(string $data): string {
+    $pad = 4 - (strlen($data) % 4);
+    if ($pad < 4) $data .= str_repeat('=', $pad);
+    return base64_decode(strtr($data, '-_', '+/'));
+}
+function jwtSecret(): string {
+    if (!defined('JWT_SECRET') || JWT_SECRET === '' || JWT_SECRET === 'GENERAR_64_HEX_CHARS_O_MAS')
+        throw new Exception('JWT_SECRET no configurado en api.config.php');
+    return JWT_SECRET;
+}
+function jwtEncode(array $claims): string {
+    $ttl = defined('JWT_EXP_SECONDS') ? (int)JWT_EXP_SECONDS : 28800;
+    $claims['iat'] = time();
+    $claims['exp'] = time() + $ttl;
+    $header  = jwtB64UrlEncode(json_encode(['alg'=>'HS256','typ'=>'JWT']));
+    $payload = jwtB64UrlEncode(json_encode($claims));
+    $sig     = jwtB64UrlEncode(hash_hmac('sha256', "$header.$payload", jwtSecret(), true));
+    return "$header.$payload.$sig";
+}
+function jwtDecode(string $token): array {
+    $parts = explode('.', $token);
+    if (count($parts) !== 3) throw new Exception('Token mal formado');
+    [$header, $payload, $sig] = $parts;
+    $expected = jwtB64UrlEncode(hash_hmac('sha256', "$header.$payload", jwtSecret(), true));
+    if (!hash_equals($expected, $sig)) throw new Exception('Firma JWT inválida');
+    $claims = json_decode(jwtB64UrlDecode($payload), true);
+    if (!is_array($claims)) throw new Exception('Payload JWT inválido');
+    if (!isset($claims['exp']) || $claims['exp'] < time()) throw new Exception('Token expirado');
+    return $claims;
+}
+
 // ── ADMIN ─────────────────────────────────────────────────────────────────────
 function adminLogin(): void {
-    $data=json_decode(file_get_contents('php://input'),true);
-    if(($data['usuario']??'')===ADMIN_USER&&($data['password']??'')===ADMIN_PASS)
-        jsonOk(['token'=>base64_encode(ADMIN_USER.':'.ADMIN_PASS)]);
-    jsonError('Credenciales incorrectas',401);
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (($data['usuario'] ?? '') !== ADMIN_USER || ($data['password'] ?? '') !== ADMIN_PASS)
+        jsonError('Credenciales incorrectas', 401);
+    $token = jwtEncode(['role' => 'admin', 'sub' => ADMIN_USER]);
+    jsonOk(['token' => $token, 'expira_en' => defined('JWT_EXP_SECONDS') ? (int)JWT_EXP_SECONDS : 28800]);
 }
 function checkAdmin(): void {
-    if(($_SERVER['HTTP_X_ADMIN_TOKEN']??'')!==base64_encode(ADMIN_USER.':'.ADMIN_PASS))
-        jsonError('No autorizado',401);
+    $token = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? '';
+    if (!$token) jsonError('No autorizado', 401);
+    try {
+        $claims = jwtDecode($token);
+        if (($claims['role'] ?? '') !== 'admin') throw new Exception('Rol incorrecto');
+    } catch (Exception $e) {
+        jsonError('Sesión inválida o expirada: ' . $e->getMessage(), 401);
+    }
 }
 function adminMedicos(): void {
     checkAdmin(); $db=getDB();
@@ -432,20 +474,30 @@ function adminStats(): void {
 
 // ── PORTAL MÉDICO ─────────────────────────────────────────────────────────────
 function medicoLogin(): void {
-    $data=json_decode(file_get_contents('php://input'),true);
-    if(empty($data['email'])||empty($data['password'])) jsonError('Email y password requeridos');
-    $row=fetchOne(query('SELECT id,nombre,apellido,titulo,email,password_hash,estado,foto_perfil FROM medicos WHERE email=?','s',[strtolower(trim($data['email']))]));
-    if(!$row||!password_verify($data['password'],$row['password_hash'])) jsonError('Credenciales incorrectas',401);
-    $token=base64_encode($row['id'].'|'.$row['email'].'|'.md5($row['password_hash'].'medic_secret'));
-    unset($row['password_hash']); jsonOk(['token'=>$token,'medico'=>$row]);
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (empty($data['email']) || empty($data['password'])) jsonError('Email y password requeridos');
+    $row = fetchOne(query('SELECT id,nombre,apellido,titulo,email,password_hash,estado,foto_perfil FROM medicos WHERE email=?', 's', [strtolower(trim($data['email']))]));
+    if (!$row || !password_verify($data['password'], $row['password_hash']))
+        jsonError('Credenciales incorrectas', 401);
+    $token = jwtEncode(['role' => 'medico', 'sub' => (int)$row['id']]);
+    unset($row['password_hash']);
+    jsonOk(['token' => $token, 'medico' => $row, 'expira_en' => defined('JWT_EXP_SECONDS') ? (int)JWT_EXP_SECONDS : 28800]);
 }
 function checkMedico(): int {
-    $auth=$_SERVER['HTTP_X_MEDICO_TOKEN']??''; if(!$auth) jsonError('No autorizado',401);
-    $parts=explode('|',base64_decode($auth)); if(count($parts)!==3) jsonError('Token invalido',401);
-    [$id,$email,$hash]=$parts;
-    $row=fetchOne(query('SELECT id,password_hash FROM medicos WHERE id=? AND email=?','is',[(int)$id,$email]));
-    if(!$row||md5($row['password_hash'].'medic_secret')!==$hash) jsonError('Token invalido',401);
-    return (int)$id;
+    $token = $_SERVER['HTTP_X_MEDICO_TOKEN'] ?? '';
+    if (!$token) jsonError('No autorizado', 401);
+    try {
+        $claims = jwtDecode($token);
+        if (($claims['role'] ?? '') !== 'medico' || empty($claims['sub']))
+            throw new Exception('Rol o sub ausente');
+        $id = (int)$claims['sub'];
+        $row = fetchOne(query('SELECT id FROM medicos WHERE id=?', 'i', [$id]));
+        if (!$row) throw new Exception('Médico no existe');
+        return $id;
+    } catch (Exception $e) {
+        jsonError('Sesión inválida o expirada: ' . $e->getMessage(), 401);
+        return 0; // unreachable
+    }
 }
 function medicoPerfil(): void {
     $medicoId=checkMedico(); ensureEmergenciaColumn(); $db=getDB();

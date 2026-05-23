@@ -32,6 +32,12 @@ define('ADMIN_PASS', 'TU_PASSWORD_ADMIN');
 // ── Clave secreta del cron job ───────────────────────────────────────────────
 define('CRON_KEY', 'TU_CLAVE_SECRETA_CRON');
 
+// ── Clave secreta JWT (auth admin y médico) ──────────────────────────────────
+// Generar con:  php -r "echo bin2hex(random_bytes(48));"
+// Cambiarla invalida TODAS las sesiones activas (admin y médicos) — usar con cuidado.
+define('JWT_SECRET', 'GENERAR_64_HEX_CHARS_O_MAS');
+define('JWT_EXP_SECONDS', 28800); // 8h por defecto
+
 // ── Email (Synology MailPlus local) ──────────────────────────────────────────
 define('MAIL_HOST',  '127.0.0.1');
 define('MAIL_PORT',  25);

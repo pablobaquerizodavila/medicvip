@@ -297,7 +297,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - `api.config.php` excluido del repo y `chmod 640` en el server
 - CORS restringido a `ALLOWED_ORIGINS` (en producción solo `medicvip.org`)
 - Datos de tarjetas NUNCA almacenados localmente (delegados a pasarela)
-- Auth admin actual: `base64(user:pass)` — **pendiente migrar a JWT** (Fase 6G)
+- **Auth admin y médico vía JWT HS256** firmado con `JWT_SECRET`, expiración configurable (default 8h). Tokens incluyen `role`, `sub`, `iat`, `exp` y se validan con `hash_equals` para evitar timing attacks.
 
 ---
 
@@ -321,7 +321,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [ ] **Fase 6D — Notificaciones WhatsApp** (WhatsApp Cloud API)
 - [ ] **Fase 6E — Historial de pagos** del médico en el portal
 - [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
-- [ ] **Fase 6G — JWT con expiración** para auth admin
+- [x] **Fase 6G — JWT con expiración** para auth admin y médico (HS256, 8h)
 - [x] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
 - [x] **Fase 6I — Cron de recordatorios** diarios (8:30 AM via /etc/crontab)
 - [ ] **Fase 6J — Mejoras de UI/UX** y flujo móvil
