@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MedicOnline — Consultas médicas desde casa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #0D7A5F;
+    --green-light: #E6F5F1;
+    --green-mid: #1D9E75;
+    --green-dark: #094D3B;
+    --cream: #FAF8F4;
+    --ink: #1A1A18;
+    --muted: #6B6B66;
+    --border: rgba(26,26,24,.1);
+    --white: #fff;
+    --radius: 16px;
+    --font-display: 'DM Serif Display', serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font-body); background: var(--cream); color: var(--ink); line-height: 1.6; overflow-x: hidden; }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 48px;
+    background: rgba(250,248,244,.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    animation: fadeDown .5s ease both;
+  }
+  .logo { font-family: var(--font-display); font-size: 22px; color: var(--ink); text-decoration: none; }
+  .logo em { color: var(--green-mid); font-style: normal; }
+  .nav-links { display: flex; align-items: center; gap: 32px; }
+  .nav-links a { font-size: 14px; color: var(--muted); text-decoration: none; transition: color .2s; }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-ctas { display: flex; gap: 10px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; border-radius: 100px; font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; text-decoration: none; transition: all .2s; border: 1.5px solid transparent; }
+  .btn-outline { border-color: var(--border); color: var(--ink); background: transparent; }
+  .btn-outline:hover { background: var(--white); border-color: var(--green-mid); color: var(--green); }
+  .btn-solid { background: var(--green-mid); color: var(--white); border-color: var(--green-mid); }
+  .btn-solid:hover { background: var(--green-dark); border-color: var(--green-dark); transform: translateY(-1px); }
+  .btn-large { padding: 14px 32px; font-size: 15px; border-radius: 100px; }
+
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: grid; grid-template-columns: 1fr 1fr; align-items: center;
+    padding: 120px 48px 80px;
+    gap: 48px;
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; top: -200px; right: -200px;
+    width: 700px; height: 700px;
+    background: radial-gradient(circle, rgba(29,158,117,.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .hero-text { animation: fadeUp .7s .1s ease both; }
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--green-light); color: var(--green);
+    font-size: 12px; font-weight: 500; padding: 6px 14px; border-radius: 100px;
+    margin-bottom: 24px; letter-spacing: .02em;
+  }
+  .hero-badge::before { content: ''; width: 6px; height: 6px; background: var(--green-mid); border-radius: 50%; animation: pulse 2s infinite; }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(40px, 5vw, 64px); line-height: 1.1; margin-bottom: 20px; color: var(--ink); }
+  .hero h1 em { font-style: italic; color: var(--green-mid); }
+  .hero p { font-size: 17px; color: var(--muted); max-width: 440px; margin-bottom: 36px; line-height: 1.7; }
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .hero-stats { display: flex; gap: 32px; margin-top: 48px; padding-top: 32px; border-top: 1px solid var(--border); }
+  .stat-item { display: flex; flex-direction: column; }
+  .stat-num { font-family: var(--font-display); font-size: 30px; color: var(--ink); }
+  .stat-label { font-size: 13px; color: var(--muted); }
+
+  /* HERO CARD FLOAT */
+  .hero-visual { animation: fadeUp .7s .25s ease both; position: relative; }
+  .floating-card {
+    background: var(--white); border-radius: var(--radius); padding: 24px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.08), 0 2px 8px rgba(0,0,0,.04);
+    max-width: 380px; margin: 0 auto;
+    animation: float 5s ease-in-out infinite;
+  }
+  .fc-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .fc-avatar { width: 48px; height: 48px; border-radius: 50%; background: linear-gradient(135deg,#E1F5EE,#9FE1CB); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 16px; color: var(--green-dark); }
+  .fc-name { font-weight: 500; font-size: 15px; }
+  .fc-spec { font-size: 13px; color: var(--muted); }
+  .fc-rating { margin-left: auto; background: var(--green-light); color: var(--green); font-size: 12px; font-weight: 500; padding: 4px 10px; border-radius: 100px; }
+  .fc-slots { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .fc-slot { padding: 6px 14px; border-radius: 100px; font-size: 13px; border: 1px solid var(--border); color: var(--muted); cursor: pointer; transition: all .2s; }
+  .fc-slot.active { background: var(--green-mid); color: var(--white); border-color: var(--green-mid); }
+  .fc-btn { width: 100%; padding: 12px; background: var(--ink); color: var(--white); border: none; border-radius: 12px; font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; }
+
+  .mini-card {
+    position: absolute; background: var(--white); border-radius: 14px; padding: 14px 18px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.1);
+    font-size: 13px; font-weight: 500;
+    animation: float 4s 1s ease-in-out infinite;
+  }
+  .mini-card.mc1 { top: -20px; right: -30px; display: flex; align-items: center; gap: 8px; }
+  .mini-card.mc2 { bottom: 40px; left: -40px; display: flex; align-items: center; gap: 8px; }
+  .mc-icon { width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+
+  /* HOW IT WORKS */
+  .section { padding: 96px 48px; }
+  .section-label { font-size: 12px; font-weight: 500; color: var(--green); letter-spacing: .1em; text-transform: uppercase; margin-bottom: 12px; }
+  .section-title { font-family: var(--font-display); font-size: clamp(28px, 3.5vw, 48px); line-height: 1.15; margin-bottom: 16px; }
+  .section-sub { font-size: 16px; color: var(--muted); max-width: 520px; line-height: 1.7; }
+  .how-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 56px; }
+  .how-card {
+    background: var(--white); border-radius: var(--radius); padding: 32px;
+    border: 1px solid var(--border); position: relative; overflow: hidden;
+    transition: transform .25s, box-shadow .25s;
+  }
+  .how-card:hover { transform: translateY(-4px); box-shadow: 0 16px 48px rgba(0,0,0,.08); }
+  .how-num { font-family: var(--font-display); font-size: 64px; color: var(--green-light); position: absolute; top: 16px; right: 20px; line-height: 1; }
+  .how-icon { width: 48px; height: 48px; background: var(--green-light); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 20px; }
+  .how-card h3 { font-size: 17px; font-weight: 500; margin-bottom: 8px; }
+  .how-card p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+  /* SPECIALTIES */
+  .specs-section { background: var(--white); }
+  .specs-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 40px; }
+  .spec-chip {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 20px; background: var(--cream); border-radius: 100px;
+    font-size: 14px; font-weight: 500; color: var(--ink);
+    border: 1px solid var(--border); cursor: pointer; transition: all .2s;
+    text-decoration: none;
+  }
+  .spec-chip:hover { background: var(--green-light); color: var(--green); border-color: var(--green-mid); transform: translateY(-2px); }
+  .spec-chip span { font-size: 18px; }
+
+  /* DOCTORS PREVIEW */
+  .doctors-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-top: 48px; }
+  .doctor-card {
+    background: var(--white); border-radius: var(--radius); padding: 24px;
+    border: 1px solid var(--border); transition: all .25s;
+  }
+  .doctor-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,.07); }
+  .dc-top { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+  .dc-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; flex-shrink: 0; }
+  .dc-av1 { background: linear-gradient(135deg,#E1F5EE,#9FE1CB); color: var(--green-dark); }
+  .dc-av2 { background: linear-gradient(135deg,#E6F1FB,#B5D4F4); color: #0C447C; }
+  .dc-av3 { background: linear-gradient(135deg,#FBEAF0,#F4C0D1); color: #72243E; }
+  .dc-name { font-size: 15px; font-weight: 500; }
+  .dc-spec { font-size: 13px; color: var(--muted); }
+  .dc-rating { display: flex; align-items: center; gap: 4px; font-size: 13px; margin-top: 4px; }
+  .dc-rating .star { color: #EF9F27; }
+  .dc-bio { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 16px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .dc-bottom { display: flex; align-items: center; justify-content: space-between; }
+  .dc-price { font-size: 15px; font-weight: 500; }
+  .dc-price span { font-size: 12px; color: var(--muted); font-weight: 400; }
+  .dc-btn { padding: 8px 18px; background: var(--green-light); color: var(--green); border: none; border-radius: 100px; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; text-decoration: none; }
+  .dc-btn:hover { background: var(--green-mid); color: var(--white); }
+
+  /* CTA SECTION */
+  .cta-section { background: var(--ink); color: var(--white); border-radius: 32px; margin: 0 32px 80px; padding: 80px 64px; display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: center; position: relative; overflow: hidden; }
+  .cta-section::before { content: ''; position: absolute; top: -150px; left: -150px; width: 500px; height: 500px; background: radial-gradient(circle, rgba(29,158,117,.2) 0%, transparent 70%); z-index: 0; pointer-events: none; }
+  .cta-section h2 { font-family: var(--font-display); font-size: clamp(28px, 3vw, 44px); line-height: 1.15; }
+  .cta-section h2 em { color: #5DCAA5; font-style: italic; }
+  .cta-section p { color: rgba(255,255,255,.65); font-size: 16px; margin-top: 12px; line-height: 1.7; }
+  .cta-cards { display: flex; flex-direction: column; gap: 14px; position: relative; }
+  .cta-card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1); border-radius: var(--radius); padding: 22px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; text-decoration: none; transition: all .2s; }
+  .cta-card:hover { background: rgba(255,255,255,.1); transform: translateX(4px); }
+  .cta-card-title { font-size: 15px; font-weight: 500; color: var(--white); }
+  .cta-card-sub { font-size: 13px; color: rgba(255,255,255,.5); margin-top: 2px; }
+  .cta-arrow { font-size: 20px; color: #5DCAA5; }
+
+  /* FOOTER */
+  footer { padding: 48px; border-top: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: gap; }
+  .footer-left .logo { font-size: 18px; }
+  .footer-left p { font-size: 13px; color: var(--muted); margin-top: 6px; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color .2s; }
+  .footer-links a:hover { color: var(--ink); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeDown { from { opacity: 0; transform: translateY(-16px); } to { opacity: 1; transform: none; } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .6; transform: scale(1.3); } }
+
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.visible { opacity: 1; transform: none; }
+
+  @media (max-width: 900px) {
+    nav { padding: 16px 24px; }
+    .nav-links { display: none; }
+    .hero { grid-template-columns: 1fr; padding: 100px 24px 60px; }
+    .hero-visual { display: none; }
+    .how-grid, .doctors-grid { grid-template-columns: 1fr; }
+    .cta-section { grid-template-columns: 1fr; margin: 0 16px 48px; padding: 48px 32px; }
+    .section { padding: 64px 24px; }
+    footer { flex-direction: column; gap: 24px; padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/mediconline/index.html?v=2" class="logo">Medic<em>Online</em></a>
+  <div class="nav-links">
+    <a href="#como-funciona">Cómo funciona</a>
+    <a href="#especialidades">Especialidades</a>
+    <a href="/mediconline/medico-portal.html">Médicos</a>
+  </div>
+  <div class="nav-ctas">
+    <a href="/mediconline/registro-medico.html?v=2" class="btn btn-outline">Soy médico</a>
+    <a href="/mediconline/pacientes.html?v=2" class="btn btn-solid">Buscar médico</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-text">
+    <div class="hero-badge">Atención médica en línea</div>
+    <h1>Tu médico, <em>donde estés</em> y cuando lo necesites</h1>
+    <p>Consultas con especialistas certificados por videollamada. Rápido, seguro y desde la comodidad de tu hogar.</p>
+    <div class="hero-actions">
+      <a href="/mediconline/pacientes.html?v=2" class="btn btn-solid btn-large">Encontrar médico →</a>
+      <a href="/mediconline/registro-medico.html?v=2" class="btn btn-outline btn-large">Registrarse como médico</a>
+    </div>
+    <div class="hero-stats">
+      <div class="stat-item"><span class="stat-num">200+</span><span class="stat-label">Médicos activos</span></div>
+      <div class="stat-item"><span class="stat-num">12k+</span><span class="stat-label">Consultas realizadas</span></div>
+      <div class="stat-item"><span class="stat-num">4.9★</span><span class="stat-label">Calificación promedio</span></div>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="mini-card mc1">
+      <div class="mc-icon" style="background:#E1F5EE; font-size:18px;">✓</div>
+      <div><div style="font-size:13px;font-weight:500">Consulta confirmada</div><div style="font-size:11px;color:#6B6B66">Hoy 15:00 — Dr. Vega</div></div>
+    </div>
+    <div class="floating-card">
+      <div class="fc-header">
+        <div class="fc-avatar">AM</div>
+        <div>
+          <div class="fc-name">Dra. Ana Morales</div>
+          <div class="fc-spec">Pediatría · 8 años exp.</div>
+        </div>
+        <div class="fc-rating">★ 4.9</div>
+      </div>
+      <p style="font-size:13px;color:#6B6B66;margin-bottom:16px">Selecciona un horario disponible:</p>
+      <div class="fc-slots">
+        <div class="fc-slot">09:00</div>
+        <div class="fc-slot active">11:00</div>
+        <div class="fc-slot">14:00</div>
+        <div class="fc-slot">16:00</div>
+      </div>
+      <button class="fc-btn">Agendar consulta · $30</button>
+    </div>
+    <div class="mini-card mc2">
+      <div class="mc-icon" style="background:#E6F1FB; font-size:18px;">🎥</div>
+      <div><div style="font-size:13px;font-weight:500">Videollamada lista</div><div style="font-size:11px;color:#6B6B66">Conecta en cualquier momento</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="como-funciona">
+  <div class="section-label reveal">Cómo funciona</div>
+  <h2 class="section-title reveal">Atención médica en <em style="font-style:italic;color:var(--green-mid)">3 pasos</em></h2>
+  <p class="section-sub reveal">Sin colas, sin desplazamientos. En minutos tienes tu consulta agendada con el especialista que necesitas.</p>
+  <div class="how-grid">
+    <div class="how-card reveal">
+      <div class="how-num">1</div>
+      <div class="how-icon">🔍</div>
+      <h3>Elige tu especialista</h3>
+      <p>Filtra por especialidad, ciudad y disponibilidad. Lee perfiles verificados y calificaciones reales de otros pacientes.</p>
+    </div>
+    <div class="how-card reveal" style="transition-delay:.1s">
+      <div class="how-num">2</div>
+      <div class="how-icon">🔒</div>
+      <h3>Paga de forma segura</h3>
+      <p>El cobro lo gestiona MedicOnline, no el médico. Una vez confirmado tu pago, recibes los datos del médico para coordinar la consulta.</p>
+    </div>
+    <div class="how-card reveal" style="transition-delay:.2s">
+      <div class="how-num">3</div>
+      <div class="how-icon">💻</div>
+      <h3>Consulta y listo</h3>
+      <p>Coordina el horario y el medio (videollamada, WhatsApp, etc.) directamente con tu médico. MedicOnline le transfiere su pago automáticamente.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section specs-section" id="especialidades">
+  <div style="max-width:700px">
+    <div class="section-label reveal">Especialidades</div>
+    <h2 class="section-title reveal">Expertos en todo lo que <em style="font-style:italic;color:var(--green-mid)">necesitas</em></h2>
+    <p class="section-sub reveal">Contamos con médicos especializados en las áreas más demandadas, listos para atenderte hoy.</p>
+  </div>
+  <div class="specs-grid reveal">
+    <a href="/mediconline/pacientes.html?v=2&spec=general" class="spec-chip"><span>🩺</span> Medicina general</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=pediatria" class="spec-chip"><span>👶</span> Pediatría</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=cardiologia" class="spec-chip"><span>❤️</span> Cardiología</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=dermatologia" class="spec-chip"><span>✨</span> Dermatología</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=psicologia" class="spec-chip"><span>🧠</span> Psicología</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=ginecologia" class="spec-chip"><span>🌸</span> Ginecología</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=traumatologia" class="spec-chip"><span>🦴</span> Traumatología</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=nutricion" class="spec-chip"><span>🥗</span> Nutrición</a>
+    <a href="/mediconline/pacientes.html?v=2&spec=oftalmologia" class="spec-chip"><span>👁️</span> Oftalmología</a>
+    <a href="/mediconline/pacientes.html?v=2" class="spec-chip"><span>+</span> Ver todas</a>
+  </div>
+</section>
+
+<section class="section" id="medicos">
+  <div class="section-label reveal">Médicos destacados</div>
+  <h2 class="section-title reveal">Profesionales de <em style="font-style:italic;color:var(--green-mid)">confianza</em></h2>
+  <div class="doctors-grid" id="doctors-grid">
+    <!-- Se carga dinámicamente desde la API -->
+    <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);font-size:14px">Cargando médicos...</div>
+  </div>
+  <div style="text-align:center;margin-top:40px">
+    <a href="/mediconline/pacientes.html?v=2" class="btn btn-outline btn-large">Ver todos los médicos →</a>
+  </div>
+</section>
+
+<section style="padding:0 32px 80px">
+  <div class="cta-section">
+    <div>
+      <h2>¿Eres médico? <em>Llega a más pacientes</em></h2>
+      <p>Únete a nuestra plataforma, establece tus propios horarios y tarifas. Atiende consultas online desde donde quieras.</p>
+      <button onclick="window.location.href='/mediconline/registro-medico.html'" class="btn btn-solid btn-large" style="margin-top:28px;background:#5DCAA5;border-color:#5DCAA5;color:var(--green-dark);cursor:pointer;font-family:var(--font-body);font-size:15px;position:relative;z-index:10">Registrarme como médico →</button>
+    </div>
+    <div class="cta-cards">
+      <div class="cta-card" href="#">
+        <div>
+          <div class="cta-card-title">Tú defines tus horarios</div>
+          <div class="cta-card-sub">Total flexibilidad sobre tu agenda</div>
+        </div>
+        <div class="cta-arrow">→</div>
+      </div>
+      <div class="cta-card">
+        <div>
+          <div class="cta-card-title">Pago seguro garantizado</div>
+          <div class="cta-card-sub">Cobras directamente por cada consulta</div>
+        </div>
+        <div class="cta-arrow">→</div>
+      </div>
+      <div class="cta-card">
+        <div>
+          <div class="cta-card-title">Sin costos de inicio</div>
+          <div class="cta-card-sub">Registro gratuito, solo pagamos juntos</div>
+        </div>
+        <div class="cta-arrow">→</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-left">
+    <a href="/mediconline/index.html?v=2" class="logo">Medic<em style="color:var(--green-mid)">Online</em></a>
+    <p>© 2025 MedicOnline. Todos los derechos reservados.</p>
+  </div>
+  <div class="footer-links">
+    <a href="#">Términos de uso</a>
+    <a href="#">Privacidad</a>
+    <a href="#">Soporte</a>
+    <a href="/mediconline/registro-medico.html?v=2">Para médicos</a>
+  </div>
+</footer>
+
+<script>
+  const API = '/api.php';
+  const AV_COLORS = ['dc-av1','dc-av2','dc-av3'];
+
+  async function loadDestacados() {
+    try {
+      const res  = await fetch(API + '?action=listar_medicos');
+      const json = await res.json();
+      const grid = document.getElementById('doctors-grid');
+
+      if (!json.ok || !json.data.length) {
+        grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);font-size:14px">Próximamente habrá médicos disponibles.</div>';
+        return;
+      }
+
+      // Mostrar máximo 3 médicos activos
+      const lista = json.data.slice(0, 3);
+      grid.innerHTML = lista.map((m, i) => {
+        const nombre   = (m.nombre_completo || '').trim();
+        const iniciales = nombre.split(' ').filter((_,j) => j < 2).map(w => w[0]).join('');
+        const avatar   = m.foto_perfil
+          ? `<div class="dc-avatar ${AV_COLORS[i]}" style="padding:0;overflow:hidden"><img src="${m.foto_perfil}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>`
+          : `<div class="dc-avatar ${AV_COLORS[i]}">${iniciales}</div>`;
+        const tarifa   = parseFloat(m.tarifa || 0).toFixed(2);
+        const bio      = (m.biografia || '').length > 120 ? m.biografia.substring(0, 120) + '...' : (m.biografia || '');
+        return `
+          <div class="doctor-card reveal" style="transition-delay:${i * 0.1}s">
+            <div class="dc-top">
+              ${avatar}
+              <div>
+                <div class="dc-name">${nombre}</div>
+                <div class="dc-spec">${m.especialidad || '—'} · ${m.ciudad || '—'}</div>
+              </div>
+            </div>
+            <p class="dc-bio">${bio}</p>
+            <div class="dc-bottom">
+              <div class="dc-price">$${tarifa} <span>/ consulta</span></div>
+              <a href="/mediconline/pacientes.html?v=2" class="dc-btn">Agendar →</a>
+            </div>
+          </div>`;
+      }).join('');
+
+      // Re-activar animaciones reveal para las nuevas tarjetas
+      document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    } catch(e) {
+      document.getElementById('doctors-grid').innerHTML =
+        '<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--muted);font-size:14px">No se pudo cargar la información de médicos.</div>';
+    }
+  }
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => { if(e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: .15 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  document.querySelectorAll('.fc-slot').forEach(slot => {
+    slot.addEventListener('click', () => {
+      document.querySelectorAll('.fc-slot').forEach(s => s.classList.remove('active'));
+      slot.classList.add('active');
+    });
+  });
+
+  // Cargar médicos al iniciar
+  loadDestacados();
+</script>
+</body>
+</html>

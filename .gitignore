@@ -1,0 +1,27 @@
+# ============================================================
+#  MedicOnline — .gitignore
+# ============================================================
+
+# Configuración con credenciales reales — NUNCA subir
+api.config.php
+
+# Fotos de perfil subidas por usuarios
+uploads/fotos/
+
+# Logs
+cron.log
+*.log
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# PHP
+*.cache

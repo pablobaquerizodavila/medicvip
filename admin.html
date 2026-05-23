@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Panel Admin — MedicOnline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #0D7A5F; --green-light: #E6F5F1; --green-mid: #1D9E75;
+    --ink: #1A1A18; --muted: #6B6B66; --border: rgba(26,26,24,.1);
+    --cream: #FAF8F4; --white: #fff; --red: #E24B4A; --red-light: #FCEBEB;
+    --amber: #EF9F27; --amber-light: #FEF3DC; --blue: #185FA5; --blue-light: #E6F1FB;
+    --font: 'DM Sans', sans-serif; --radius: 12px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--cream); color: var(--ink); min-height: 100vh; }
+
+  /* LOGIN */
+  .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+  .login-card { background: var(--white); border-radius: 20px; padding: 48px 40px; width: 100%; max-width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.08); }
+  .login-logo { font-size: 22px; font-weight: 500; margin-bottom: 8px; }
+  .login-logo em { color: var(--green-mid); font-style: normal; }
+  .login-sub { font-size: 13px; color: var(--muted); margin-bottom: 32px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+  .field input { width: 100%; padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: var(--font); font-size: 14px; color: var(--ink); }
+  .field input:focus { outline: none; border-color: var(--green-mid); }
+  .input-wrap { position: relative; }
+  .input-wrap input { padding-right: 42px; }
+  .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--muted); padding: 4px; display: flex; align-items: center; transition: color .2s; }
+  .eye-btn:hover { color: var(--ink); }
+  .btn-login { width: 100%; padding: 12px; background: var(--ink); color: var(--white); border: none; border-radius: 100px; font-family: var(--font); font-size: 14px; font-weight: 500; cursor: pointer; margin-top: 8px; }
+  .btn-login:hover { background: var(--green-mid); }
+  .login-error { font-size: 13px; color: var(--red); margin-top: 10px; text-align: center; display: none; }
+
+  /* APP LAYOUT */
+  .app { display: none; }
+  .app.show { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: var(--ink); color: var(--white); padding: 24px 0; flex-shrink: 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .sidebar-logo { padding: 0 20px 24px; font-size: 18px; font-weight: 500; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .sidebar-logo em { color: #5DCAA5; font-style: normal; }
+  .sidebar-sub { padding: 6px 20px 0; font-size: 11px; color: rgba(255,255,255,.35); }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 20px; font-size: 14px; color: rgba(255,255,255,.6); cursor: pointer; transition: all .15s; border-left: 3px solid transparent; }
+  .nav-item:hover { background: rgba(255,255,255,.06); color: var(--white); }
+  .nav-item.active { background: rgba(93,202,165,.1); color: #5DCAA5; border-left-color: #5DCAA5; }
+  .nav-icon { font-size: 16px; width: 20px; text-align: center; }
+  .nav-section { padding: 16px 20px 6px; font-size: 10px; color: rgba(255,255,255,.25); text-transform: uppercase; letter-spacing: .08em; }
+  .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.08); margin-top: auto; }
+  .logout-btn { font-size: 13px; color: rgba(255,255,255,.4); cursor: pointer; background: none; border: none; font-family: var(--font); }
+  .logout-btn:hover { color: var(--red); }
+
+  /* MAIN */
+  .main { flex: 1; padding: 32px; overflow-x: hidden; }
+  .page-title { font-size: 22px; font-weight: 500; margin-bottom: 6px; }
+  .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+  /* STATS */
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 14px; margin-bottom: 32px; }
+  .stat-card { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px 20px; }
+  .stat-card .label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 8px; }
+  .stat-card .value { font-size: 28px; font-weight: 500; }
+  .stat-card.green .value { color: var(--green-mid); }
+  .stat-card.amber .value { color: var(--amber); }
+  .stat-card.blue  .value { color: var(--blue); }
+  .stat-card.red   .value { color: var(--red); }
+
+  /* TABLE */
+  .table-wrap { background: var(--white); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .table-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+  .table-header h3 { font-size: 15px; font-weight: 500; }
+  .search-input { padding: 8px 14px; border: 1px solid var(--border); border-radius: 100px; font-family: var(--font); font-size: 13px; width: 220px; }
+  .search-input:focus { outline: none; border-color: var(--green-mid); }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; padding: 10px 16px; font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--border); background: var(--cream); }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--cream); }
+  .avatar-sm { width: 36px; height: 36px; border-radius: 50%; background: var(--green-light); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 500; color: var(--green); flex-shrink: 0; overflow: hidden; }
+  .avatar-sm img { width: 100%; height: 100%; object-fit: cover; }
+  .doc-info { display: flex; align-items: center; gap: 10px; }
+  .doc-name { font-weight: 500; font-size: 14px; }
+  .doc-email { font-size: 12px; color: var(--muted); }
+
+  /* BADGES */
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 500; }
+  .badge-green  { background: var(--green-light);  color: var(--green); }
+  .badge-amber  { background: var(--amber-light);  color: #8B5A00; }
+  .badge-red    { background: var(--red-light);    color: var(--red); }
+  .badge-blue   { background: var(--blue-light);   color: var(--blue); }
+
+  /* ACTIONS */
+  .actions { display: flex; gap: 6px; }
+  .btn-icon { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+  .btn-icon:hover { background: var(--cream); }
+  .btn-icon.danger:hover { background: var(--red-light); border-color: var(--red); }
+  .btn-icon.success:hover { background: var(--green-light); border-color: var(--green-mid); }
+
+  /* MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 16px; width: 100%; max-width: 480px; padding: 28px; animation: fadeUp .25s ease; }
+  .modal h3 { font-size: 17px; font-weight: 500; margin-bottom: 6px; }
+  .modal p { font-size: 13px; color: var(--muted); margin-bottom: 20px; line-height: 1.6; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .btn { padding: 9px 20px; border-radius: 100px; font-family: var(--font); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--ink); transition: all .15s; }
+  .btn:hover { background: var(--cream); }
+  .btn-danger { background: var(--red); color: var(--white); border-color: var(--red); }
+  .btn-danger:hover { background: #c03a39; }
+  .btn-primary { background: var(--green-mid); color: var(--white); border-color: var(--green-mid); }
+  .btn-primary:hover { background: var(--green); }
+
+  /* SELECT ESTADO */
+  .estado-select { padding: 4px 10px; border-radius: 100px; font-family: var(--font); font-size: 12px; font-weight: 500; border: 1px solid var(--border); cursor: pointer; background: var(--cream); }
+
+  /* DETAIL PANEL */
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .detail-item label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: 2px; }
+  .detail-item span { font-size: 13px; font-weight: 500; }
+
+  /* TABS */
+  .section { display: none; }
+  .section.active { display: block; }
+
+  /* EMPTY */
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); font-size: 14px; }
+  .empty-icon { font-size: 40px; margin-bottom: 12px; }
+
+  /* LOADING */
+  .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-screen" id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Medic<em>Online</em></div>
+    <p class="login-sub">Panel de administración</p>
+    <div class="field"><label>Usuario</label><input type="text" id="login-user" placeholder="admin" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="field"><label>Contraseña</label>
+      <div class="input-wrap">
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" class="eye-btn" onclick="togglePass()" id="eye-btn">
+          <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-login" onclick="doLogin()">Ingresar al panel</button>
+    <p class="login-error" id="login-error">Usuario o contraseña incorrectos</p>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sidebar-logo">Medic<em>Online</em></div>
+    <div class="sidebar-sub">Admin</div>
+    <div style="margin-top:16px">
+      <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</div>
+      <div class="nav-item" onclick="showSection('medicos',this)"><span class="nav-icon">👨‍⚕️</span> Médicos</div>
+      <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Reservas</div>
+    </div>
+    <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)">
+      <button class="logout-btn" onclick="doLogout()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:7px">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- DASHBOARD -->
+    <div class="section active" id="section-dashboard">
+      <div class="page-title">Dashboard</div>
+      <p class="page-sub">Resumen general de la plataforma</p>
+      <div class="stats-grid" id="stats-grid"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <!-- MÉDICOS -->
+    <div class="section" id="section-medicos">
+      <div class="page-title">Médicos registrados</div>
+      <p class="page-sub">Gestiona los perfiles, estados y datos de cada médico</p>
+      <div class="table-wrap">
+        <div class="table-header">
+          <h3>Todos los médicos</h3>
+          <input class="search-input" type="text" placeholder="Buscar médico..." oninput="filterTable(this.value)">
+        </div>
+        <div id="medicos-table"><div class="loading">Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- RESERVAS -->
+    <div class="section" id="section-reservas">
+      <div class="page-title">Reservas</div>
+      <p class="page-sub">Historial de consultas agendadas y estado de pagos</p>
+      <div class="table-wrap">
+        <div class="table-header"><h3>Todas las reservas</h3></div>
+        <div id="reservas-table"><div class="loading">Cargando...</div></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- MODAL ELIMINAR -->
+<div class="modal-overlay" id="modal-eliminar-reserva">
+  <div class="modal-box">
+    <h3>¿Eliminar esta reserva?</h3>
+    <p id="modal-reserva-desc" style="color:var(--muted);font-size:14px;margin:8px 0 16px;line-height:1.5"></p>
+    <div style="background:#FEF2F2;border-radius:8px;padding:12px 14px;margin-bottom:20px;font-size:13px;color:#B91C1C">
+      ⚠️ Esta acción elimina la reserva permanentemente de la base de datos. Solo hazlo si es un registro de prueba o duplicado. Si hay un pago real pendiente, usa primero el reembolso.
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="document.getElementById('modal-eliminar-reserva').classList.remove('open')">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmEliminarReserva()">Sí, eliminar reserva</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-eliminar">
+  <div class="modal">
+    <h3>¿Eliminar médico?</h3>
+    <p>Esta acción eliminará permanentemente el perfil, disponibilidad y datos bancarios del médico. No se puede deshacer.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger" onclick="confirmEliminar()">Sí, eliminar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE -->
+<div class="modal-overlay" id="modal-detalle" onclick="if(event.target===this)closeModal()">
+  <div class="modal" style="max-width:560px">
+    <div id="modal-detalle-content"></div>
+    <div class="modal-actions" style="margin-top:16px">
+      <button class="btn" onclick="closeModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api.php';
+
+function togglePass() {
+  const input = document.getElementById('login-pass');
+  const btn   = document.getElementById('eye-btn');
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
+  btn.style.color = show ? 'var(--green-mid)' : 'var(--muted)';
+  document.getElementById('eye-icon').innerHTML = show
+    ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+    : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+}
+
+
+let token = localStorage.getItem('admin_token') || '';
+let pendingDeleteId = null;
+let allMedicos = [];
+
+// ---- AUTH ----
+async function doLogin() {
+  const user  = document.getElementById('login-user').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.style.display = 'none';
+
+  if (!user || !pass) {
+    errEl.textContent = 'Ingresa usuario y contraseña';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  try {
+    const res  = await fetch(API + '?action=admin_login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({usuario: user, password: pass})
+    });
+    const json = await res.json();
+    if (json.ok) {
+      token = json.data.token;
+      localStorage.setItem('admin_token', token);
+      enterApp();
+    } else {
+      errEl.textContent = 'Usuario o contraseña incorrectos';
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Usuario o contraseña incorrectos';
+    errEl.style.display = 'block';
+  }
+}
+
+function enterApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  loadDashboard();
+  loadMedicos();
+}
+
+function doLogout() {
+  localStorage.removeItem('admin_token');
+  token = '';
+  location.reload();
+}
+
+// Auto-login se ejecuta al final del script — ver abajo
+
+function authHeaders() {
+  return {'Content-Type':'application/json','X-Admin-Token': token};
+}
+
+// ---- NAVEGACIÓN ----
+function showSection(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'reservas') loadReservas();
+}
+
+// ---- DASHBOARD ----
+async function loadDashboard() {
+  const res  = await fetch(API + '?action=admin_stats', {headers: authHeaders()});
+  const json = await res.json();
+  if (!json.ok) return;
+  const s = json.data;
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card green"><div class="label">Total médicos</div><div class="value">${s.total_medicos}</div></div>
+    <div class="stat-card green"><div class="label">Médicos activos</div><div class="value">${s.medicos_activos}</div></div>
+    <div class="stat-card amber"><div class="label">Pendientes</div><div class="value">${s.medicos_pendientes}</div></div>
+    <div class="stat-card blue"><div class="label">Reservas</div><div class="value">${s.total_reservas}</div></div>
+    <div class="stat-card blue"><div class="label">Pacientes</div><div class="value">${s.total_pacientes}</div></div>
+    <div class="stat-card green"><div class="label">Ingresos (comisión)</div><div class="value">$${parseFloat(s.ingresos_totales).toFixed(2)}</div></div>
+  `;
+}
+
+// ---- MÉDICOS ----
+async function loadMedicos() {
+  const res  = await fetch(API + '?action=admin_medicos', {headers: authHeaders()});
+  const json = await res.json();
+  if (!json.ok) { document.getElementById('medicos-table').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar médicos</div>'; return; }
+  allMedicos = json.data;
+  renderMedicos(allMedicos);
+}
+
+function renderMedicos(list) {
+  if (!list.length) {
+    document.getElementById('medicos-table').innerHTML = '<div class="empty"><div class="empty-icon">👨‍⚕️</div>No hay médicos registrados aún</div>';
+    return;
+  }
+  document.getElementById('medicos-table').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Médico</th><th>Especialidad</th><th>Ciudad</th>
+        <th>Tarifa</th><th>Estado</th><th>Registrado</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>${list.map(m => `
+        <tr>
+          <td>
+            <div class="doc-info">
+              <div class="avatar-sm">${m.foto_perfil ? `<img src="${m.foto_perfil}">` : initials(m.nombre, m.apellido)}</div>
+              <div><div class="doc-name">${m.titulo} ${m.nombre} ${m.apellido}</div><div class="doc-email">${m.email}</div></div>
+            </div>
+          </td>
+          <td>${m.especialidad || '—'}</td>
+          <td>${m.ciudad}</td>
+          <td>${m.tarifa ? '$'+parseFloat(m.tarifa).toFixed(2) : '—'}</td>
+          <td>
+            <select class="estado-select" onchange="cambiarEstado(${m.id}, this.value)">
+              <option value="pendiente" ${m.estado==='pendiente'?'selected':''}>⏳ Pendiente</option>
+              <option value="activo"    ${m.estado==='activo'?'selected':''}>✅ Activo</option>
+              <option value="suspendido" ${m.estado==='suspendido'?'selected':''}>🚫 Suspendido</option>
+            </select>
+          </td>
+          <td>${formatDate(m.creado_en)}</td>
+          <td>
+            <div class="actions">
+              <button class="btn-icon" title="Ver detalle" onclick="verDetalle(${m.id})">👁</button>
+              <button class="btn-icon danger" title="Eliminar" onclick="eliminarMedico(${m.id})">🗑</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function filterTable(q) {
+  const f = q.toLowerCase();
+  renderMedicos(allMedicos.filter(m =>
+    `${m.nombre} ${m.apellido} ${m.email} ${m.especialidad} ${m.ciudad}`.toLowerCase().includes(f)
+  ));
+}
+
+async function cambiarEstado(id, estado) {
+  const res  = await fetch(API + '?action=admin_estado', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({id, estado})
+  });
+  const json = await res.json();
+  if (json.ok) loadDashboard();
+}
+
+function eliminarMedico(id) {
+  pendingDeleteId = id;
+  document.getElementById('modal-eliminar').classList.add('open');
+}
+
+async function confirmEliminar() {
+  const res  = await fetch(API + '?action=admin_eliminar', {
+    method: 'POST', headers: authHeaders(),
+    body: JSON.stringify({id: pendingDeleteId})
+  });
+  const json = await res.json();
+  closeModal();
+  if (json.ok) { loadMedicos(); loadDashboard(); }
+}
+
+function verDetalle(id) {
+  const m = allMedicos.find(x => x.id === id);
+  if (!m) return;
+  document.getElementById('modal-detalle-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px">
+      <div class="avatar-sm" style="width:52px;height:52px;font-size:16px">${m.foto_perfil ? `<img src="${m.foto_perfil}">` : initials(m.nombre, m.apellido)}</div>
+      <div>
+        <div style="font-size:17px;font-weight:500">${m.titulo} ${m.nombre} ${m.apellido}</div>
+        <div style="font-size:13px;color:var(--muted)">${m.especialidad || '—'} · ${m.ciudad}</div>
+      </div>
+    </div>
+    <div class="detail-grid">
+      <div class="detail-item"><label>Email</label><span>${m.email}</span></div>
+      <div class="detail-item"><label>Teléfono</label><span>${m.telefono}</span></div>
+      <div class="detail-item"><label>Licencia</label><span>${m.licencia}</span></div>
+      <div class="detail-item"><label>Experiencia</label><span>${m.anos_experiencia || '—'}</span></div>
+      <div class="detail-item"><label>Tarifa</label><span>${m.tarifa ? '$'+parseFloat(m.tarifa).toFixed(2) : '—'}</span></div>
+      <div class="detail-item"><label>Estado</label><span>${m.estado}</span></div>
+      <div class="detail-item"><label>Banco</label><span>${m.banco || '—'}</span></div>
+      <div class="detail-item"><label>Cuenta</label><span>${m.tipo_cuenta || '—'} · ${m.numero_cuenta || '—'}</span></div>
+      <div class="detail-item" style="grid-column:1/-1"><label>Titular</label><span>${m.nombre_titular || '—'}</span></div>
+      <div class="detail-item" style="grid-column:1/-1"><label>Biografía</label><span style="font-weight:400;font-size:13px;color:var(--muted)">${m.biografia || '—'}</span></div>
+    </div>`;
+  document.getElementById('modal-detalle').classList.add('open');
+}
+
+// ---- RESERVAS ----
+async function loadReservas() {
+  const res  = await fetch(API + '?action=admin_reservas', {headers: authHeaders()});
+  const json = await res.json();
+  if (!json.ok || !json.data.length) {
+    document.getElementById('reservas-table').innerHTML = '<div class="empty"><div class="empty-icon">📅</div>No hay reservas aún</div>';
+    return;
+  }
+  document.getElementById('reservas-table').innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Médico</th><th>Paciente</th><th>Horario</th>
+        <th>Total</th><th>Comisión</th><th>Médico recibe</th>
+        <th>Estado pago</th><th>Consulta</th><th>Acciones</th>
+      </tr></thead>
+      <tbody>${json.data.map(r => `
+        <tr>
+          <td>${r.medico}</td>
+          <td><div>${r.paciente}</div><div style="font-size:11px;color:var(--muted)">${r.email_paciente}</div></td>
+          <td>${r.horario}</td>
+          <td>$${parseFloat(r.monto_total).toFixed(2)}</td>
+          <td style="color:var(--green)">$${parseFloat(r.comision).toFixed(2)}</td>
+          <td>$${parseFloat(r.monto_medico).toFixed(2)}</td>
+          <td>
+            <span class="badge ${
+              r.estado_pago==='pagado'?'badge-green':
+              r.estado_pago==='reembolsado'?'badge-red':
+              r.estado_pago==='en_custodia'?'badge-amber':'badge-blue'}">
+              ${r.estado_pago==='en_custodia'?'💰 En custodia':r.estado_pago}
+            </span>
+          </td>
+          <td>
+            <span class="badge ${
+              r.estado_consulta==='confirmada'||r.estado_consulta==='realizada'?'badge-green':
+              r.estado_consulta==='no_realizada'||r.estado_consulta==='cancelada'?'badge-red':'badge-blue'}">
+              ${r.estado_consulta}
+            </span>
+          </td>
+          <td style="display:flex;gap:6px;align-items:center">
+            ${r.estado_pago==='en_custodia'||r.estado_pago==='pagado'?
+              `<button class="btn-icon danger" title="Reembolsar manualmente" onclick="reembolsoManual(${r.id})">↩</button>`:''}
+            <button class="btn-icon danger" title="Eliminar reserva" onclick="eliminarReserva(${r.id},'${(r.paciente||'').replace(/'/g,'')}')">🗑</button>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+let _reservaIdToDelete = null;
+
+function eliminarReserva(id, paciente) {
+  _reservaIdToDelete = id;
+  document.getElementById('modal-reserva-desc').textContent =
+    'Reserva #' + id + ' del paciente "' + paciente + '". Esta acción no se puede deshacer.';
+  document.getElementById('modal-eliminar-reserva').classList.add('open');
+}
+
+async function confirmEliminarReserva() {
+  if (!_reservaIdToDelete) return;
+  document.getElementById('modal-eliminar-reserva').classList.remove('open');
+  try {
+    const res  = await fetch(API + '?action=admin_eliminar_reserva', {
+      method: 'POST', headers: {...authHeaders(), 'Content-Type':'application/json'},
+      body: JSON.stringify({reserva_id: _reservaIdToDelete})
+    });
+    const json = await res.json();
+    if (json.ok) {
+      // Remove row from table visually
+      const rows = document.querySelectorAll('#reservas-table tbody tr');
+      rows.forEach(row => { if (row.innerHTML.includes('eliminarReserva(' + _reservaIdToDelete + ',')) row.remove(); });
+      loadReservas();
+      loadDashboard();
+    } else {
+      alert('Error: ' + json.error);
+    }
+  } catch(e) { alert('Error de conexión'); }
+  _reservaIdToDelete = null;
+}
+
+async function reembolsoManual(reservaId) {
+  const motivo = prompt('Motivo del reembolso:');
+  if (motivo === null) return;
+  const res  = await fetch(API + '?action=admin_reembolso', {
+    method:'POST', headers: authHeaders(),
+    body: JSON.stringify({reserva_id: reservaId, motivo: motivo || 'Reembolso manual por administrador'})
+  });
+  const json = await res.json();
+  if (json.ok) { alert('✅ ' + json.data.mensaje); loadReservas(); loadDashboard(); }
+  else alert('Error: ' + json.error);
+}
+
+// ---- HELPERS ----
+function initials(n, a) { return ((n||'')[0]||'') + ((a||'')[0]||''); }
+function formatDate(d) { if (!d) return '—'; return new Date(d).toLocaleDateString('es-EC', {day:'2-digit',month:'short',year:'numeric'}); }
+function closeModal() { document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('open')); }
+
+// Auto-login si ya tiene token guardado
+if (token) enterApp();
+</script>
+</body>
+</html>

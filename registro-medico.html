@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Registro de Médico — MedicOnline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #0D7A5F; --green-light: #E6F5F1; --green-mid: #1D9E75;
+    --green-dark: #094D3B; --cream: #FAF8F4; --ink: #1A1A18;
+    --muted: #6B6B66; --border: rgba(26,26,24,.12); --white: #fff;
+    --radius: 14px; --error: #E24B4A; --error-light: #FCEBEB;
+    --font-display: 'DM Serif Display', serif; --font-body: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--cream); color: var(--ink); min-height: 100vh; display: grid; grid-template-columns: 420px 1fr; }
+
+  /* SIDEBAR */
+  .sidebar {
+    background: var(--ink); color: var(--white);
+    padding: 40px 40px 60px; display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh; overflow: auto;
+  }
+  .sidebar-logo { font-family: var(--font-display); font-size: 20px; margin-bottom: 48px; }
+  .sidebar-logo em { color: #5DCAA5; font-style: normal; }
+  .sidebar-title { font-family: var(--font-display); font-size: 30px; line-height: 1.2; margin-bottom: 14px; }
+  .sidebar-title em { color: #5DCAA5; font-style: italic; }
+  .sidebar-sub { font-size: 14px; color: rgba(255,255,255,.55); line-height: 1.7; margin-bottom: 40px; }
+  .benefit { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+  .benefit-icon { width: 36px; height: 36px; border-radius: 10px; background: rgba(93,202,165,.15); border: 1px solid rgba(93,202,165,.25); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .benefit-text strong { display: block; font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+  .benefit-text span { font-size: 12px; color: rgba(255,255,255,.45); }
+  .sidebar-bottom { margin-top: auto; padding-top: 40px; border-top: 1px solid rgba(255,255,255,.1); }
+  .sidebar-bottom p { font-size: 13px; color: rgba(255,255,255,.4); line-height: 1.6; }
+  .sidebar-bottom a { color: #5DCAA5; text-decoration: none; }
+
+  /* STEPS INDICATOR */
+  .steps-bar { display: flex; gap: 0; margin-bottom: 36px; }
+  .step-item { flex: 1; display: flex; flex-direction: column; align-items: center; position: relative; cursor: pointer; }
+  .step-item:not(:last-child)::after { content: ''; position: absolute; top: 18px; left: 60%; width: 80%; height: 1px; background: rgba(255,255,255,.15); }
+  .step-dot { width: 36px; height: 36px; border-radius: 50%; border: 1.5px solid rgba(255,255,255,.2); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: rgba(255,255,255,.4); position: relative; z-index: 1; transition: all .3s; background: var(--ink); }
+  .step-dot.active { border-color: #5DCAA5; color: #5DCAA5; }
+  .step-dot.done { background: #5DCAA5; border-color: #5DCAA5; color: var(--green-dark); }
+  .step-label { font-size: 11px; color: rgba(255,255,255,.35); margin-top: 6px; text-align: center; }
+  .step-item.active .step-label { color: rgba(255,255,255,.8); }
+
+  /* MAIN FORM */
+  .main { padding: 60px 64px; max-width: 680px; }
+  .form-header { margin-bottom: 36px; }
+  .form-step-label { font-size: 12px; color: var(--green-mid); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 8px; }
+  .form-title { font-family: var(--font-display); font-size: 32px; margin-bottom: 8px; }
+  .form-sub { font-size: 14px; color: var(--muted); }
+
+  .form-step { display: none; animation: fadeUp .35s ease both; }
+  .form-step.active { display: block; }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .form-group.full { grid-column: 1/-1; }
+  label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]), select, textarea {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-family: var(--font-body); font-size: 14px;
+    background: var(--white); color: var(--ink); transition: border-color .2s, box-shadow .2s;
+    appearance: none; -webkit-appearance: none;
+  }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]):focus, select:focus, textarea:focus { outline: none; border-color: var(--green-mid); box-shadow: 0 0 0 3px rgba(29,158,117,.1); }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]).error { border-color: var(--error); }
+  textarea { resize: vertical; min-height: 100px; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B6B66' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .field-hint { font-size: 12px; color: var(--muted); }
+  .field-error { font-size: 12px; color: var(--error); display: none; }
+  .field-error.show { display: block; }
+  .input-wrapper { position: relative; }
+  .input-wrapper input { padding-right: 44px; }
+  .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--muted); display: flex; align-items: center; transition: color .2s; }
+  .eye-btn:hover { color: var(--ink); }
+
+  /* PHOTO UPLOAD */
+  .photo-upload { border: 2px dashed var(--border); border-radius: var(--radius); padding: 28px; text-align: center; cursor: pointer; transition: all .2s; position: relative; }
+  .photo-upload:hover { border-color: var(--green-mid); background: var(--green-light); }
+  .photo-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .photo-upload-icon { font-size: 32px; margin-bottom: 8px; }
+  .photo-upload p { font-size: 13px; color: var(--muted); }
+  .photo-upload strong { font-size: 14px; display: block; margin-bottom: 4px; }
+
+  /* SCHEDULE */
+  .schedule-day { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 10px; }
+  .day-header { display: flex; align-items: center; gap: 14px; padding: 14px 18px; background: var(--white); cursor: pointer; }
+  .day-check { width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid var(--border); display: flex; align-items: center; justify-content: center; transition: all .2s; flex-shrink: 0; }
+  .day-check.on { background: var(--green-mid); border-color: var(--green-mid); }
+  .day-check.on::after { content: '✓'; font-size: 11px; color: white; font-weight: 700; }
+  .day-name { font-size: 14px; font-weight: 500; flex: 1; }
+  .day-slots-label { font-size: 12px; color: var(--muted); }
+  .day-slots { display: none; padding: 12px 18px 16px; border-top: 1px solid var(--border); background: var(--cream); flex-wrap: wrap; gap: 8px; }
+  .day-slots.open { display: flex; }
+  .time-slot { padding: 7px 14px; border: 1.5px solid var(--border); border-radius: 100px; font-size: 13px; cursor: pointer; background: var(--white); color: var(--muted); transition: all .2s; font-family: var(--font-body); }
+  .time-slot.sel { background: var(--green-light); border-color: var(--green-mid); color: var(--green); font-weight: 500; }
+
+  /* PRICING CARD */
+  .pricing-tip { background: var(--green-light); border-radius: 12px; padding: 16px 20px; display: flex; gap: 12px; align-items: flex-start; margin-bottom: 20px; }
+  .pricing-tip-icon { font-size: 18px; flex-shrink: 0; }
+  .pricing-tip p { font-size: 13px; color: var(--green-dark); line-height: 1.6; }
+
+  /* FORM ACTIONS */
+  .form-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1.5px solid var(--border); }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px; border-radius: 100px; font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s; border: 1.5px solid transparent; text-decoration: none; }
+  .btn-back { border-color: var(--border); color: var(--muted); background: transparent; }
+  .btn-back:hover { background: var(--white); color: var(--ink); }
+  .btn-next { background: var(--green-mid); color: var(--white); border-color: var(--green-mid); }
+  .btn-next:hover { background: var(--green-dark); border-color: var(--green-dark); transform: translateY(-1px); }
+  .btn-submit { background: var(--ink); color: var(--white); border-color: var(--ink); padding: 14px 36px; font-size: 15px; }
+  .btn-submit:hover { background: #333; }
+
+  /* SUCCESS */
+  .success-screen { display: none; text-align: center; padding: 60px 20px; }
+  .success-screen.show { display: block; animation: fadeUp .5s ease both; }
+  .success-circle { width: 80px; height: 80px; background: var(--green-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 24px; }
+  .success-screen h2 { font-family: var(--font-display); font-size: 32px; margin-bottom: 12px; }
+  .success-screen p { font-size: 15px; color: var(--muted); max-width: 400px; margin: 0 auto 32px; line-height: 1.7; }
+
+  /* PROGRESS BAR */
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 40px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green-mid); border-radius: 2px; transition: width .4s ease; }
+
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 860px) {
+    body { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; padding: 32px 24px; }
+    .main { padding: 40px 24px; max-width: 100%; }
+    .form-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">Medic<em>Online</em></div>
+  <h2 class="sidebar-title">Únete a la plataforma <em>médica más grande</em> del país</h2>
+  <p class="sidebar-sub">Registra tu perfil en menos de 5 minutos y empieza a recibir pacientes esta semana.</p>
+
+  <div class="steps-bar" id="sidebar-steps">
+    <div class="step-item active" data-step="1">
+      <div class="step-dot active">1</div>
+      <span class="step-label">Perfil</span>
+    </div>
+    <div class="step-item" data-step="2">
+      <div class="step-dot">2</div>
+      <span class="step-label">Especialidad</span>
+    </div>
+    <div class="step-item" data-step="3">
+      <div class="step-dot">3</div>
+      <span class="step-label">Horarios</span>
+    </div>
+    <div class="step-item" data-step="4">
+      <div class="step-dot">4</div>
+      <span class="step-label">Tarifa</span>
+    </div>
+  </div>
+
+  <div class="benefit">
+    <div class="benefit-icon">📅</div>
+    <div class="benefit-text">
+      <strong>Tú decides tus horarios</strong>
+      <span>Agenda flexible, completamente bajo tu control</span>
+    </div>
+  </div>
+  <div class="benefit">
+    <div class="benefit-icon">💳</div>
+    <div class="benefit-text">
+      <strong>Cobro seguro por cada consulta</strong>
+      <span>Transferencia directa a tu cuenta bancaria</span>
+    </div>
+  </div>
+  <div class="benefit">
+    <div class="benefit-icon">🌎</div>
+    <div class="benefit-text">
+      <strong>Pacientes de todo el país</strong>
+      <span>Accede a miles de pacientes en Ecuador y el exterior</span>
+    </div>
+  </div>
+  <div class="benefit">
+    <div class="benefit-icon">🔒</div>
+    <div class="benefit-text">
+      <strong>Plataforma verificada y segura</strong>
+      <span>Verificamos credenciales y protegemos tu información</span>
+    </div>
+  </div>
+
+  <div class="sidebar-bottom">
+    <p>¿Ya tienes cuenta? <a href="#">Inicia sesión aquí</a><br>¿Eres paciente? <a href="pacientes.html?v=2">Busca un médico →</a></p>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="progress-bar"><div class="progress-fill" id="progress" style="width:25%"></div></div>
+
+  <!-- STEP 1: DATOS PERSONALES -->
+  <div class="form-step active" id="step-1">
+    <div class="form-header">
+      <div class="form-step-label">Paso 1 de 4</div>
+      <h1 class="form-title">Datos personales</h1>
+      <p class="form-sub">Esta información se usará para crear tu perfil público y verificar tu identidad.</p>
+    </div>
+
+    <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:24px">
+      <input type="file" accept="image/*" id="photo-input" style="display:none" onchange="previewPhoto(this)">
+      <div class="photo-upload" id="photo-widget" style="width:130px;min-width:130px;height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;overflow:hidden" onclick="document.getElementById('photo-input').click()">
+        <div id="photo-placeholder" style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
+          <div class="photo-upload-icon">📷</div>
+          <p style="font-size:11px;margin-top:4px">Foto de perfil</p>
+        </div>
+        <img id="photo-preview" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:inherit;pointer-events:none">
+      </div>
+      <div style="flex:1">
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre *</label>
+            <input type="text" id="nombre" placeholder="Ej. María" required>
+            <span class="field-error" id="err-nombre">Campo requerido</span>
+          </div>
+          <div class="form-group">
+            <label>Apellido *</label>
+            <input type="text" id="apellido" placeholder="Ej. García" required>
+            <span class="field-error" id="err-apellido">Campo requerido</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Título profesional *</label>
+          <select id="titulo">
+            <option value="">Selecciona...</option>
+            <option>Dr.</option>
+            <option>Dra.</option>
+            <option>Lic.</option>
+            <option>Lcda.</option>
+            <option>Psic.</option>
+            <option>Nut.</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Correo electrónico *</label>
+        <input type="email" id="email" placeholder="doctor@correo.com" required>
+        <span class="field-error" id="err-email">Ingresa un correo válido</span>
+      </div>
+      <div class="form-group">
+        <label>Teléfono *</label>
+        <input type="tel" id="telefono" placeholder="+593 99 000 0000" required>
+      </div>
+      <div class="form-group">
+        <label>Ciudad *</label>
+        <select id="ciudad">
+          <option value="">Selecciona...</option>
+          <option>Quito</option>
+          <option>Guayaquil</option>
+          <option>Cuenca</option>
+          <option>Ambato</option>
+          <option>Manta</option>
+          <option>Loja</option>
+          <option>Otra</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Género</label>
+        <select id="genero">
+          <option value="">Prefiero no decir</option>
+          <option>Masculino</option>
+          <option>Femenino</option>
+          <option>No binario</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>N.º de licencia médica *</label>
+        <input type="text" id="licencia" placeholder="Ej. EC-12345" required>
+        <span class="field-hint">Emitida por el Ministerio de Salud</span>
+        <span class="field-error" id="err-licencia">Campo requerido</span>
+      </div>
+      <div class="form-group">
+        <label>Contraseña *</label>
+        <div class="input-wrapper">
+          <input type="password" id="password" placeholder="Mínimo 8 caracteres" required>
+          <button type="button" class="eye-btn" onclick="togglePassword()" id="eye-btn" aria-label="Mostrar contraseña">
+            <svg id="eye-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <a href="index.html?v=2" class="btn btn-back">← Volver al inicio</a>
+      <button class="btn btn-next" onclick="goStep(2)">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: ESPECIALIDAD -->
+  <div class="form-step" id="step-2">
+    <div class="form-header">
+      <div class="form-step-label">Paso 2 de 4</div>
+      <h1 class="form-title">Especialidad y formación</h1>
+      <p class="form-sub">Los pacientes filtran por especialidad. Sé específico para aparecer en las búsquedas correctas.</p>
+    </div>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Especialidad principal *</label>
+        <select id="especialidad">
+          <option value="">Selecciona...</option>
+          <option>Medicina general</option>
+          <option>Pediatría</option>
+          <option>Cardiología</option>
+          <option>Dermatología</option>
+          <option>Psicología clínica</option>
+          <option>Ginecología y obstetricia</option>
+          <option>Traumatología</option>
+          <option>Nutrición y dietética</option>
+          <option>Oftalmología</option>
+          <option>Neurología</option>
+          <option>Endocrinología</option>
+          <option>Oncología</option>
+          <option>Otra</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Subespecialidad</label>
+        <input type="text" placeholder="Ej. Cardiología pediátrica">
+        <span class="field-hint">Opcional</span>
+      </div>
+      <div class="form-group">
+        <label>Años de experiencia *</label>
+        <select id="anos_experiencia">
+          <option value="">Selecciona...</option>
+          <option value="Menos de 2 años">Menos de 2 años</option>
+          <option value="2 – 5 años">2 – 5 años</option>
+          <option value="6 – 10 años">6 – 10 años</option>
+          <option value="11 – 15 años">11 – 15 años</option>
+          <option value="Más de 15 años">Más de 15 años</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Idiomas de atención</label>
+        <select id="idiomas">
+          <option>Español</option>
+          <option>Español e inglés</option>
+          <option>Español, inglés y francés</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Universidad / institución de titulación *</label>
+        <input type="text" id="universidad" placeholder="Ej. Universidad Central del Ecuador">
+      </div>
+      <div class="form-group full">
+        <label>Postgrado / maestría (si aplica)</label>
+        <input type="text" id="postgrado" placeholder="Ej. Especialización en Cardiología — USFQ, 2018">
+      </div>
+      <div class="form-group full">
+        <label>Presentación para los pacientes *</label>
+        <textarea id="bio" placeholder="Cuéntanos tu enfoque médico, experiencia y lo que te diferencia. Será visible en tu perfil (mín. 60 palabras)."></textarea>
+        <span class="field-hint" id="bio-count">0 / 400 caracteres</span>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-back" onclick="goStep(1)">← Atrás</button>
+      <button class="btn btn-next" onclick="goStep(3)">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: HORARIOS -->
+  <div class="form-step" id="step-3">
+    <div class="form-header">
+      <div class="form-step-label">Paso 3 de 4</div>
+      <h1 class="form-title">Disponibilidad semanal</h1>
+      <p class="form-sub">Activa los días en que atiendes y selecciona los bloques horarios disponibles para consultas.</p>
+    </div>
+
+    <div id="schedule-container"></div>
+
+    <div style="background:var(--green-light);border-radius:12px;padding:14px 18px;margin-top:8px">
+      <p style="font-size:13px;color:var(--green-dark)">💡 Puedes cambiar tu disponibilidad en cualquier momento desde tu panel de control, incluso con consultas ya agendadas.</p>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-back" onclick="goStep(2)">← Atrás</button>
+      <button class="btn btn-next" onclick="goStep(4)">Siguiente →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: DATOS DE PAGO AL MÉDICO -->
+  <div class="form-step" id="step-4">
+    <div class="form-header">
+      <div class="form-step-label">Paso 4 de 4</div>
+      <h1 class="form-title">Datos bancarios y acuerdo</h1>
+      <p class="form-sub">MedicOnline cobra al paciente y te transfiere tu parte automáticamente según el acuerdo de comisión.</p>
+    </div>
+
+    <!-- Cómo funciona el pago -->
+    <div style="background:var(--ink);border-radius:var(--radius);padding:24px;margin-bottom:24px;color:#fff">
+      <div style="font-size:12px;font-weight:500;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,.45);margin-bottom:16px">Cómo funciona el cobro</div>
+      <div style="display:flex;flex-direction:column;gap:0">
+        <div style="display:flex;gap:14px;align-items:flex-start;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(93,202,165,.2);border:1px solid rgba(93,202,165,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#5DCAA5;flex-shrink:0">1</div>
+          <div><div style="font-size:14px;font-weight:500;margin-bottom:3px">El paciente paga en la plataforma</div><div style="font-size:12px;color:rgba(255,255,255,.45)">Tarjeta, transferencia o billetera digital — gestionado 100% por MedicOnline.</div></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding:16px 0;border-bottom:1px solid rgba(255,255,255,.08)">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(93,202,165,.2);border:1px solid rgba(93,202,165,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#5DCAA5;flex-shrink:0">2</div>
+          <div><div style="font-size:14px;font-weight:500;margin-bottom:3px">El paciente recibe el contacto del médico</div><div style="font-size:12px;color:rgba(255,255,255,.45)">Solo tras el pago confirmado se habilita el acceso al médico para coordinar la consulta.</div></div>
+        </div>
+        <div style="display:flex;gap:14px;align-items:flex-start;padding-top:16px">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(93,202,165,.2);border:1px solid rgba(93,202,165,.3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:#5DCAA5;flex-shrink:0">3</div>
+          <div><div style="font-size:14px;font-weight:500;margin-bottom:3px">MedicOnline retiene la comisión y te paga</div><div style="font-size:12px;color:rgba(255,255,255,.45)">Automáticamente o con aprobación manual, según el plan que elijas. Pago a tu cuenta en 24–72h.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tarifa definida por el médico -->
+    <div class="form-grid" style="margin-bottom:4px">
+      <div class="form-group">
+        <label>Tu tarifa por consulta (USD) *</label>
+        <input type="number" id="tarifa" placeholder="Ej. 35" min="10" max="300" oninput="updateSummary()">
+        <span class="field-hint">El paciente verá este valor. Mínimo $10.</span>
+      </div>
+      <div class="form-group">
+        <label>Duración de la consulta</label>
+        <select id="duracion" onchange="updateSummary()">
+          <option value="20">20 minutos</option>
+          <option value="30" selected>30 minutos</option>
+          <option value="45">45 minutos</option>
+          <option value="60">60 minutos</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Resumen de cobro -->
+    <div style="background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:20px">
+      <div style="font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px">Desglose por consulta</div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px">
+        <span style="color:var(--muted)">Tarifa que cobra MedicOnline al paciente</span>
+        <span style="font-weight:500" id="rate-gross">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:14px">
+        <span style="color:var(--muted)">Comisión MedicOnline (15%)</span>
+        <span id="rate-commission" style="color:var(--error)">—</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:12px 0;font-size:16px;font-weight:500">
+        <span>Tú recibes por consulta</span>
+        <span id="rate-net" style="color:var(--green)">—</span>
+      </div>
+      <p style="font-size:12px;color:var(--muted);margin-top:6px;padding-top:10px;border-top:1px solid var(--border)">MedicOnline cobra al paciente y te transfiere tu parte automáticamente, sin que debas gestionar ningún cobro.</p>
+    </div>
+
+    <!-- Plan de comisión -->
+    <div style="margin-bottom:20px">
+      <label style="font-size:12px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:10px">Plan de liquidación</label>
+      <div style="display:flex;flex-direction:column;gap:8px" id="plan-options">
+        <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1.5px solid var(--green-mid);border-radius:12px;cursor:pointer;background:var(--green-light);text-transform:none;letter-spacing:0;font-weight:400" id="plan-auto-label">
+          <input type="radio" name="plan" value="auto" checked style="width:auto !important;height:auto !important;margin-top:2px;accent-color:var(--green-mid);flex-shrink:0;appearance:auto;-webkit-appearance:auto;">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--ink)">Automático — sin intervención</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">MedicOnline retiene la comisión y te transfiere automáticamente. Cobras en 24–48h post-consulta.</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border:1.5px solid var(--border);border-radius:12px;cursor:pointer;background:var(--white);text-transform:none;letter-spacing:0;font-weight:400" id="plan-manual-label">
+          <input type="radio" name="plan" value="manual" style="width:auto !important;height:auto !important;margin-top:2px;accent-color:var(--green-mid);flex-shrink:0;appearance:auto;-webkit-appearance:auto;">
+          <div>
+            <div style="font-size:14px;font-weight:500;color:var(--ink)">Manual — con tu aprobación</div>
+            <div style="font-size:12px;color:var(--muted);margin-top:2px">Recibes notificación por cada consulta pagada y apruebas la liquidación desde tu panel. Plazo máximo 72h.</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Datos bancarios -->
+    <div style="border-top:1.5px solid var(--border);padding-top:20px;margin-bottom:4px">
+      <div style="font-size:13px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px">Cuenta para recibir pagos</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Banco *</label>
+          <select id="banco">
+            <option value="">Selecciona...</option>
+            <option>Banco Pichincha</option>
+            <option>Banco Guayaquil</option>
+            <option>Produbanco</option>
+            <option>Banco del Pacífico</option>
+            <option>Banco Internacional</option>
+            <option>Cooperativa JEP</option>
+            <option>Otro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipo de cuenta *</label>
+          <select id="tipo-cuenta">
+            <option value="">Selecciona...</option>
+            <option>Ahorros</option>
+            <option>Corriente</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>N.º de cuenta *</label>
+          <input type="text" id="num-cuenta" placeholder="Ej. 2200123456">
+        </div>
+        <div class="form-group">
+          <label>Cédula / RUC del titular *</label>
+          <input type="text" id="cedula" placeholder="Ej. 1712345678">
+        </div>
+        <div class="form-group full">
+          <label>Nombre completo del titular *</label>
+          <input type="text" id="titular" placeholder="Igual que en el banco">
+          <span class="field-hint">Debe coincidir con el nombre registrado en tu cuenta bancaria.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Frecuencia de pago -->
+    <div class="form-group">
+      <label>Frecuencia de transferencia</label>
+      <select>
+        <option>Por consulta (cada pago confirmado)</option>
+        <option>Semanal (acumulado)</option>
+        <option>Quincenal (acumulado)</option>
+        <option>Mensual (acumulado)</option>
+      </select>
+    </div>
+
+    <div class="form-group">
+      <label>¿Cómo te enteraste de MedicOnline?</label>
+      <select>
+        <option value="">Selecciona...</option>
+        <option>Redes sociales</option>
+        <option>Recomendación de un colega</option>
+        <option>Google / búsqueda web</option>
+        <option>Evento o conferencia médica</option>
+        <option>Otro</option>
+      </select>
+    </div>
+
+    <div style="display:flex;align-items:flex-start;gap:12px;margin:20px 0">
+      <input type="checkbox" id="terms" style="width:18px !important;height:18px !important;min-width:18px;margin-top:2px;accent-color:var(--green-mid);flex-shrink:0;cursor:pointer;padding:0;appearance:auto;-webkit-appearance:auto;">
+      <label for="terms" style="font-size:13px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;cursor:pointer">Acepto los <a href="#" style="color:var(--green)">Términos y condiciones</a>, la <a href="#" style="color:var(--green)">Política de privacidad</a> y el <a href="#" style="color:var(--green)">Acuerdo de comisión</a> de MedicOnline. Confirmo que mis credenciales médicas y datos bancarios son verídicos.</label>
+    </div>
+
+    <div class="form-actions">
+      <button class="btn btn-back" onclick="goStep(3)">← Atrás</button>
+      <button class="btn btn-next btn-submit" onclick="submitForm()">Publicar mi perfil ✓</button>
+    </div>
+  </div>
+
+  <!-- SUCCESS -->
+  <div class="success-screen" id="success">
+    <div class="success-circle">✓</div>
+    <h2>¡Perfil publicado con éxito!</h2>
+    <p>Tu perfil médico ya es visible para los pacientes. Revisa tu correo electrónico para activar tu cuenta y acceder al panel de control.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a href="pacientes.html?v=2" class="btn btn-next" style="border-radius:100px">Ver cómo te ven los pacientes</a>
+      <a href="index.html?v=2" class="btn btn-back">Ir al inicio</a>
+    </div>
+  </div>
+</main>
+
+<script>
+const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const SLOTS = ['07:00','08:00','09:00','10:00','11:00','12:00','14:00','15:00','16:00','17:00','18:00','19:00'];
+let currentStep = 1;
+
+function buildSchedule() {
+  const c = document.getElementById('schedule-container');
+  c.innerHTML = DAYS.map((d,i) => `
+    <div class="schedule-day">
+      <div class="day-header" onclick="toggleDay(${i})">
+        <div class="day-check" id="check-${i}"></div>
+        <span class="day-name">${d}</span>
+        <span class="day-slots-label" id="label-${i}">Sin horarios</span>
+      </div>
+      <div class="day-slots" id="slots-${i}">
+        ${SLOTS.map(s => `<button class="time-slot" onclick="toggleSlot(this,${i})">${s}</button>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function toggleDay(i) {
+  const check = document.getElementById('check-'+i);
+  const slots = document.getElementById('slots-'+i);
+  const on = check.classList.toggle('on');
+  slots.classList.toggle('open', on);
+  if(!on) { slots.querySelectorAll('.time-slot').forEach(s=>s.classList.remove('sel')); updateLabel(i); }
+}
+
+function toggleSlot(el, i) {
+  el.classList.toggle('sel');
+  updateLabel(i);
+}
+
+function updateLabel(i) {
+  const sel = document.getElementById('slots-'+i).querySelectorAll('.sel').length;
+  document.getElementById('label-'+i).textContent = sel ? `${sel} horario${sel>1?'s':''} activo${sel>1?'s':''}` : 'Sin horarios';
+}
+
+function goStep(n) {
+  document.getElementById('step-'+currentStep).classList.remove('active');
+  document.querySelectorAll('.step-item').forEach((el,i) => {
+    const dot = el.querySelector('.step-dot');
+    dot.classList.toggle('active', i+1===n);
+    dot.classList.toggle('done', i+1<n);
+    dot.textContent = i+1<n ? '✓' : i+1;
+    el.classList.toggle('active', i+1===n);
+  });
+  document.getElementById('progress').style.width = (n/4*100)+'%';
+  currentStep = n;
+  document.getElementById('step-'+n).classList.add('active');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+const COMMISSION = 0.15;
+
+function updateSummary() {
+  const t = parseFloat(document.getElementById('tarifa') ? document.getElementById('tarifa').value : 0) || 0;
+  const dur = document.getElementById('duracion') ? document.getElementById('duracion').value : '30';
+  const com = t * COMMISSION;
+  const net = t - com;
+  document.getElementById('rate-gross').textContent = t ? '$' + t.toFixed(2) : '—';
+  document.getElementById('rate-commission').textContent = t ? '−$' + com.toFixed(2) : '—';
+  document.getElementById('rate-net').textContent = t ? '$' + net.toFixed(2) : '—';
+}
+
+// Toggle visual de planes de liquidación
+document.addEventListener('change', e => {
+  if(e.target.name === 'plan') {
+    const autoLabel = document.getElementById('plan-auto-label');
+    const manualLabel = document.getElementById('plan-manual-label');
+    if(!autoLabel || !manualLabel) return;
+    if(e.target.value === 'auto') {
+      autoLabel.style.borderColor = 'var(--green-mid)'; autoLabel.style.background = 'var(--green-light)';
+      manualLabel.style.borderColor = 'var(--border)'; manualLabel.style.background = 'var(--white)';
+    } else {
+      manualLabel.style.borderColor = 'var(--green-mid)'; manualLabel.style.background = 'var(--green-light)';
+      autoLabel.style.borderColor = 'var(--border)'; autoLabel.style.background = 'var(--white)';
+    }
+  }
+});
+
+// URL de la API — relativa, así funciona en cualquier dominio donde se sirva la app
+const API_URL = '/api.php';
+
+async function submitForm() {
+  const terms = document.getElementById('terms');
+  if (!terms.checked) { alert('Debes aceptar los términos y condiciones para continuar.'); return; }
+
+  // Recolectar disponibilidad seleccionada
+  const disponibilidad = [];
+  document.querySelectorAll('.schedule-day').forEach((dayEl, i) => {
+    const check = document.getElementById('check-' + i);
+    if (check && check.classList.contains('on')) {
+      const dia = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'][i];
+      dayEl.querySelectorAll('.time-slot.sel').forEach(slot => {
+        disponibilidad.push({ dia, hora: slot.textContent.trim() });
+      });
+    }
+  });
+
+  // Construir payload
+  const payload = {
+    // Paso 1
+    titulo:           document.getElementById('titulo')?.value || '',
+    nombre:           document.getElementById('nombre')?.value || '',
+    apellido:         document.getElementById('apellido')?.value || '',
+    email:            document.getElementById('email')?.value || '',
+    telefono:         document.getElementById('telefono')?.value || '',
+    ciudad:           document.getElementById('ciudad')?.value || '',
+    genero:           document.getElementById('genero')?.value || '',
+    licencia:         document.getElementById('licencia')?.value || '',
+    password:         document.getElementById('password')?.value || '',
+    foto_base64:      document.getElementById('photo-preview')?.src?.startsWith('data:') ? document.getElementById('photo-preview').src : null,
+    // Paso 2
+    especialidad:     document.getElementById('especialidad')?.value || '',
+    anos_experiencia: document.getElementById('anos_experiencia')?.value || '',
+    universidad:      document.getElementById('universidad')?.value || '',
+    biografia:        document.getElementById('bio')?.value || '',
+    idiomas:          document.getElementById('idiomas')?.value || 'Español',
+    postgrado:        document.getElementById('postgrado')?.value || '',
+    // Paso 3
+    disponibilidad,
+    // Paso 4
+    tarifa:           parseFloat(document.getElementById('tarifa')?.value) || 0,
+    duracion_minutos: parseInt(document.getElementById('duracion')?.value) || 30,
+    banco:            document.getElementById('banco')?.value || '',
+    tipo_cuenta:      document.getElementById('tipo-cuenta')?.value || '',
+    numero_cuenta:    document.getElementById('num-cuenta')?.value || '',
+    cedula_titular:   document.getElementById('cedula')?.value || '',
+    nombre_titular:   document.getElementById('titular')?.value || '',
+    plan_liquidacion: document.querySelector('input[name=plan]:checked')?.value || 'auto',
+  };
+
+  // DEBUG — ver qué se está enviando (borrar después)
+  console.log('PAYLOAD:', JSON.stringify(payload, null, 2));
+  console.log('anos_experiencia:', document.getElementById('anos_experiencia')?.value);
+
+  // Mostrar estado de carga
+  const btn = document.querySelector('#step-4 .btn-submit');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+
+  try {
+    const res  = await fetch(API_URL + '?action=registro_medico', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const json = await res.json();
+
+    if (json.ok) {
+      document.getElementById('step-4').classList.remove('active');
+      document.getElementById('success').classList.add('show');
+      document.getElementById('progress').style.width = '100%';
+    } else {
+      alert('Error: ' + json.error);
+      btn.textContent = 'Publicar mi perfil ✓';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    alert('No se pudo conectar con el servidor. Verifica que la API esté activa.');
+    btn.textContent = 'Publicar mi perfil ✓';
+    btn.disabled = false;
+  }
+}
+
+function togglePassword() {
+  const input = document.getElementById('password');
+  const btn = document.getElementById('eye-btn');
+  const isHidden = input.type === 'password';
+  input.type = isHidden ? 'text' : 'password';
+  btn.setAttribute('aria-label', isHidden ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  btn.style.color = isHidden ? 'var(--green-mid)' : 'var(--muted)';
+  document.getElementById('eye-icon').innerHTML = isHidden
+    ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+    : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+}
+
+
+function previewPhoto(input) {
+  if(input.files && input.files[0]) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      const preview = document.getElementById('photo-preview');
+      const placeholder = document.getElementById('photo-placeholder');
+      preview.src = e.target.result;
+      preview.style.display = 'block';
+      placeholder.style.display = 'none';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+}
+
+// Bio character count
+document.addEventListener('DOMContentLoaded', () => {
+  buildSchedule();
+  const bio = document.getElementById('bio');
+  if(bio) bio.addEventListener('input', () => {
+    document.getElementById('bio-count').textContent = bio.value.length+' / 400 caracteres';
+  });
+});
+</script>
+</body>
+</html>

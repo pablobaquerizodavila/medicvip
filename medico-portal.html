@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal Médico — MedicOnline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#0D7A5F;--green-light:#E6F5F1;--green-mid:#1D9E75;--green-dark:#094D3B;--ink:#1A1A18;--muted:#6B6B66;--border:rgba(26,26,24,.11);--cream:#FAF8F4;--white:#fff;--red:#E24B4A;--red-light:#FCEBEB;--amber:#EF9F27;--amber-light:#FEF3DC;--font:'DM Sans',sans-serif;--display:'DM Serif Display',serif;--radius:14px}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--cream);color:var(--ink);min-height:100vh}
+  .auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .auth-card{background:var(--white);border-radius:20px;padding:48px 40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}
+  .auth-logo{font-family:var(--display);font-size:22px;margin-bottom:4px}
+  .auth-logo em{color:var(--green-mid);font-style:normal}
+  .auth-sub{font-size:13px;color:var(--muted);margin-bottom:32px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:var(--font);font-size:14px;color:var(--ink);background:var(--white)}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(29,158,117,.1)}
+  .field textarea{resize:vertical;min-height:90px}
+  .input-wrap{position:relative}
+  .input-wrap input{padding-right:42px}
+  .eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;display:flex;align-items:center;transition:color .2s}
+  .eye-btn:hover{color:var(--ink)}
+  .btn-primary{width:100%;padding:12px;background:var(--ink);color:var(--white);border:none;border-radius:100px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;transition:background .2s;margin-top:6px}
+  .btn-primary:hover{background:var(--green-mid)}
+  .auth-link{text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
+  .auth-link a{color:var(--green);cursor:pointer;text-decoration:none}
+  .auth-link a:hover{text-decoration:underline}
+  .msg{font-size:13px;padding:10px 14px;border-radius:10px;margin-top:12px;display:none}
+  .msg.error{background:var(--red-light);color:var(--red);display:block}
+  .msg.success{background:var(--green-light);color:var(--green-dark);display:block}
+  .app{display:none}
+  .app.show{display:flex;min-height:100vh}
+  .sidebar{width:230px;background:var(--ink);color:var(--white);flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+  .sidebar-top{padding:28px 20px 20px}
+  .sidebar-logo{font-family:var(--display);font-size:18px;margin-bottom:2px}
+  .sidebar-logo em{color:#5DCAA5;font-style:normal}
+  .sidebar-role{font-size:11px;color:rgba(255,255,255,.35);letter-spacing:.05em;text-transform:uppercase}
+  .sidebar-profile{display:flex;align-items:center;gap:12px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
+  .profile-avatar{width:40px;height:40px;border-radius:50%;background:rgba(93,202,165,.2);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:14px;color:#5DCAA5;flex-shrink:0;overflow:hidden}
+  .profile-avatar img{width:100%;height:100%;object-fit:cover}
+  .profile-name{font-size:13px;font-weight:500;line-height:1.3}
+  .profile-spec{font-size:11px;color:rgba(255,255,255,.4)}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:var(--white)}
+  .nav-item.active{background:rgba(93,202,165,.1);color:#5DCAA5;border-left-color:#5DCAA5}
+  .nav-icon{font-size:16px;width:20px;text-align:center}
+  .sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}
+  .logout-btn{font-size:13px;color:rgba(255,255,255,.4);cursor:pointer;background:none;border:none;font-family:var(--font);display:flex;align-items:center;gap:7px;transition:color .2s}
+  .logout-btn:hover{color:var(--red)}
+  .main{flex:1;padding:36px;overflow-x:hidden;max-width:900px}
+  .page-title{font-family:var(--display);font-size:26px;margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
+  .section{display:none}
+  .section.active{display:block}
+  .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+  .card-title{font-size:14px;font-weight:500;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .full{grid-column:1/-1}
+  .estado-toggle{display:flex;align-items:center;gap:14px;padding:18px 20px;background:var(--white);border:1.5px solid var(--border);border-radius:var(--radius);margin-bottom:20px}
+  .toggle-switch{position:relative;width:48px;height:26px;flex-shrink:0}
+  .toggle-switch input{opacity:0;width:0;height:0;position:absolute}
+  .toggle-slider{position:absolute;inset:0;background:#ccc;border-radius:100px;cursor:pointer;transition:.3s}
+  .toggle-slider::before{content:'';position:absolute;width:20px;height:20px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s}
+  .toggle-switch input:checked + .toggle-slider{background:var(--green-mid)}
+  .toggle-switch input:checked + .toggle-slider::before{transform:translateX(22px)}
+  .toggle-label{font-size:14px;font-weight:500}
+  .toggle-sub{font-size:12px;color:var(--muted)}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 22px;border-radius:100px;font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--ink);transition:all .2s}
+  .btn:hover{background:var(--cream)}
+  .btn-green{background:var(--green-mid);color:var(--white);border-color:var(--green-mid)}
+  .btn-green:hover{background:var(--green-dark)}
+  .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+  .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .stat-val{font-size:28px;font-weight:500}
+  .reservas-list{display:flex;flex-direction:column;gap:12px}
+  .reserva-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .badge{display:inline-flex;align-items:center;padding:3px 12px;border-radius:100px;font-size:12px;font-weight:500}
+  .badge-green{background:var(--green-light);color:var(--green)}
+  .badge-amber{background:var(--amber-light);color:#8B5A00}
+  .badge-red{background:var(--red-light);color:var(--red)}
+  .badge-blue{background:#E6F1FB;color:#185FA5}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+  .empty-icon{font-size:40px;margin-bottom:12px}
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+  .pass-strength{height:4px;border-radius:2px;margin-top:6px;background:var(--border);overflow:hidden}
+  .pass-strength-bar{height:100%;border-radius:2px;transition:width .3s,background .3s;width:0}
+  @media(max-width:768px){.app.show{flex-direction:column}.sidebar{width:100%;height:auto;position:static}.main{padding:20px}.grid2{grid-template-columns:1fr}}
+
+  /* VIDEO MODAL */
+  .video-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;flex-direction:column;align-items:center;justify-content:center}
+  .video-overlay.open{display:flex}
+  .video-header{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0 0 14px;color:#fff}
+  .video-header h3{font-size:16px;font-weight:500}
+  .video-close{background:rgba(255,255,255,.12);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .2s}
+  .video-close:hover{background:rgba(255,255,255,.25)}
+  .video-frame{width:100%;max-width:960px;height:70vh;border-radius:12px;overflow:hidden;border:none}
+  .btn-video{background:#0D7A5F;color:#fff;border:none;padding:8px 16px;border-radius:100px;font-size:12px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background .2s}
+  .btn-video:hover{background:#094D3B}
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="login-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Medic<em>Online</em></div>
+    <p class="auth-sub">Portal del médico — ingresa con tus credenciales</p>
+    <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="field"><label>Contraseña</label>
+      <div class="input-wrap">
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" class="eye-btn" onclick="toggleEye('login-pass','eye1')">
+          <svg id="eye1" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Ingresar al portal</button>
+    <div id="login-msg" class="msg"></div>
+    <div class="auth-link"><a onclick="showRecuperar()">¿Olvidaste tu contraseña?</a></div>
+  </div>
+</div>
+
+<div class="auth-screen" id="recuperar-screen" style="display:none">
+  <div class="auth-card">
+    <div class="auth-logo">Medic<em>Online</em></div>
+    <p class="auth-sub">Recuperar contraseña</p>
+    <div class="field"><label>Correo electrónico registrado</label><input type="email" id="rec-email" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')doRecuperar()"></div>
+    <button class="btn-primary" onclick="doRecuperar()">Enviar contraseña temporal</button>
+    <div id="rec-msg" class="msg"></div>
+    <div id="rec-temp" style="display:none;background:var(--amber-light);border-radius:10px;padding:14px;margin-top:14px;font-size:13px">
+      <strong>Tu contraseña temporal:</strong><br>
+      <span id="rec-pass-val" style="font-size:20px;font-weight:500;letter-spacing:.05em;color:var(--ink)"></span><br>
+      <span style="color:var(--muted);font-size:12px;margin-top:6px;display:block">Cópiala, inicia sesión y cámbiala de inmediato en Seguridad.</span>
+    </div>
+    <div class="auth-link"><a onclick="showLogin()">← Volver al login</a></div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-logo">Medic<em>Online</em></div>
+      <div class="sidebar-role">Portal médico</div>
+    </div>
+    <div class="sidebar-profile">
+      <div class="profile-avatar" id="sb-avatar"></div>
+      <div>
+        <div class="profile-name" id="sb-name">—</div>
+        <div class="profile-spec" id="sb-spec">—</div>
+      </div>
+    </div>
+    <nav style="flex:1">
+      <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">🏠</span> Inicio</div>
+      <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
+      <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Mis reservas</div>
+      <div class="nav-item" onclick="showSection('seguridad',this)"><span class="nav-icon">🔒</span> Seguridad</div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="doLogout()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="section active" id="section-dashboard">
+      <div class="page-title" id="dash-saludo">Bienvenido</div>
+      <p class="page-sub">Resumen de tu actividad en MedicOnline</p>
+      <div class="estado-toggle">
+        <label class="toggle-switch">
+          <input type="checkbox" id="estado-toggle" onchange="toggleEstado()">
+          <span class="toggle-slider"></span>
+        </label>
+        <div>
+          <div class="toggle-label" id="estado-label">Cargando...</div>
+          <div class="toggle-sub">Activa o desactiva tu perfil para recibir pacientes</div>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Reservas</div><div class="stat-val" id="stat-reservas" style="color:var(--green-mid)">—</div></div>
+        <div class="stat-card"><div class="stat-label">Tarifa actual</div><div class="stat-val" id="stat-tarifa">—</div></div>
+        <div class="stat-card"><div class="stat-label">Estado</div><div class="stat-val" style="font-size:15px;margin-top:6px" id="stat-estado">—</div></div>
+      </div>
+      <div class="card"><div style="font-size:13px;color:var(--muted);line-height:1.7">💡 <strong>Recuerda:</strong> Tu perfil debe estar <strong>activo</strong> para aparecer en las búsquedas de pacientes. Puedes pausarlo cuando no estés disponible.</div></div>
+    </div>
+
+    <div class="section" id="section-perfil">
+      <div class="page-title">Mi perfil</div>
+      <p class="page-sub">Edita tu información personal y profesional</p>
+      <div class="card">
+        <div class="card-title">Datos personales</div>
+        <div class="grid2">
+          <div class="field"><label>Nombre *</label><input type="text" id="p-nombre"></div>
+          <div class="field"><label>Apellido *</label><input type="text" id="p-apellido"></div>
+          <div class="field"><label>Teléfono</label><input type="tel" id="p-telefono"></div>
+          <div class="field"><label>Ciudad</label>
+            <select id="p-ciudad"><option>Quito</option><option>Guayaquil</option><option>Cuenca</option><option>Ambato</option><option>Manta</option><option>Loja</option><option>Otra</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Especialidad y experiencia</div>
+        <div class="grid2">
+          <div class="field"><label>Especialidad</label>
+            <select id="p-especialidad"><option>Medicina general</option><option>Pediatría</option><option>Cardiología</option><option>Dermatología</option><option>Psicología clínica</option><option>Ginecología y obstetricia</option><option>Traumatología</option><option>Nutrición y dietética</option><option>Oftalmología</option><option>Neurología</option><option>Endocrinología</option><option>Otra</option></select>
+          </div>
+          <div class="field"><label>Años de experiencia</label>
+            <select id="p-experiencia"><option>Menos de 2 años</option><option>2 – 5 años</option><option>6 – 10 años</option><option>11 – 15 años</option><option>Más de 15 años</option></select>
+          </div>
+          <div class="field full"><label>Biografía</label><textarea id="p-biografia" placeholder="Cuéntales a los pacientes sobre ti..."></textarea></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Tarifa y disponibilidad</div>
+        <div class="grid2">
+          <div class="field"><label>Tarifa por consulta (USD)</label><input type="number" id="p-tarifa" min="10"></div>
+          <div class="field"><label>Duración de consulta</label>
+            <select id="p-duracion"><option value="20">20 minutos</option><option value="30">30 minutos</option><option value="45">45 minutos</option><option value="60">60 minutos</option></select>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Datos bancarios</div>
+        <div class="grid2">
+          <div class="field"><label>Banco</label>
+            <select id="p-banco"><option>Banco Pichincha</option><option>Banco Guayaquil</option><option>Produbanco</option><option>Banco del Pacífico</option><option>Banco Internacional</option><option>Otro</option></select>
+          </div>
+          <div class="field"><label>Tipo de cuenta</label><select id="p-tipo-cuenta"><option>Ahorros</option><option>Corriente</option></select></div>
+          <div class="field"><label>N.º de cuenta</label><input type="text" id="p-num-cuenta"></div>
+          <div class="field"><label>Cédula / RUC titular</label><input type="text" id="p-cedula"></div>
+          <div class="field full"><label>Nombre del titular</label><input type="text" id="p-titular"></div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <div id="perfil-msg" class="msg" style="margin:0;flex:1"></div>
+        <button class="btn" onclick="loadPerfil()">Cancelar</button>
+        <button class="btn btn-green" onclick="guardarPerfil()">Guardar cambios</button>
+      </div>
+    </div>
+
+    <div class="section" id="section-reservas">
+      <div class="page-title">Mis reservas</div>
+      <p class="page-sub">Consultas agendadas por tus pacientes</p>
+      <div id="reservas-container"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <div class="section" id="section-seguridad">
+      <div class="page-title">Seguridad</div>
+      <p class="page-sub">Cambia tu contraseña de acceso al portal</p>
+      <div class="card" style="max-width:480px">
+        <div class="card-title">Cambiar contraseña</div>
+        <div class="field"><label>Contraseña actual</label>
+          <div class="input-wrap">
+            <input type="password" id="pass-actual" placeholder="Tu contraseña actual">
+            <button type="button" class="eye-btn" onclick="toggleEye('pass-actual','eye2')"><svg id="eye2" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <div class="field"><label>Nueva contraseña</label>
+          <div class="input-wrap">
+            <input type="password" id="pass-nueva" placeholder="Mínimo 8 caracteres" oninput="checkStrength(this.value)">
+            <button type="button" class="eye-btn" onclick="toggleEye('pass-nueva','eye3')"><svg id="eye3" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+          <div class="pass-strength"><div class="pass-strength-bar" id="strength-bar"></div></div>
+        </div>
+        <div class="field"><label>Confirmar nueva contraseña</label>
+          <div class="input-wrap">
+            <input type="password" id="pass-confirma" placeholder="Repite la nueva contraseña">
+            <button type="button" class="eye-btn" onclick="toggleEye('pass-confirma','eye4')"><svg id="eye4" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+          </div>
+        </div>
+        <div id="pass-msg" class="msg"></div>
+        <div class="form-actions" style="border:none;padding:0;margin-top:16px">
+          <button class="btn btn-green" onclick="cambiarPassword()">Actualizar contraseña</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '/api.php';
+let medicoData = null;
+let medicoToken = localStorage.getItem('medico_token') || '';
+let medicoId    = localStorage.getItem('medico_id')    || '';
+
+function toggleEye(inputId, svgId) {
+  const input = document.getElementById(inputId);
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
+  document.getElementById(svgId).innerHTML = show
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type;
+  if (type === 'success') setTimeout(() => el.className = 'msg', 4000);
+}
+
+function authHeaders() {
+  return {'Content-Type':'application/json','X-Medico-Token': medicoToken,'X-Medico-Id': medicoId};
+}
+
+function showLogin()     { document.getElementById('login-screen').style.display='flex'; document.getElementById('recuperar-screen').style.display='none'; }
+function showRecuperar() { document.getElementById('login-screen').style.display='none'; document.getElementById('recuperar-screen').style.display='flex'; }
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !pass) { showMsg('login-msg','Ingresa tu correo y contraseña','error'); return; }
+  try {
+    const res  = await fetch(API + '?action=medico_login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const json = await res.json();
+    if (json.ok) {
+      medicoToken = json.data.token; medicoId = json.data.medico.id;
+      localStorage.setItem('medico_token', medicoToken); localStorage.setItem('medico_id', medicoId);
+      medicoData = json.data.medico; enterApp();
+    } else { showMsg('login-msg', json.error || 'Credenciales incorrectas','error'); }
+  } catch(e) { showMsg('login-msg','No se pudo conectar con el servidor','error'); }
+}
+
+async function doRecuperar() {
+  const email = document.getElementById('rec-email').value.trim();
+  if (!email) { showMsg('rec-msg','Ingresa tu correo','error'); return; }
+  try {
+    const res  = await fetch(API + '?action=medico_recuperar', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const json = await res.json();
+    if (json.ok) {
+      document.getElementById('rec-msg').className = 'msg';
+      if (json.data.password_temp) {
+        document.getElementById('rec-pass-val').textContent = json.data.password_temp;
+        document.getElementById('rec-temp').style.display = 'block';
+      } else { showMsg('rec-msg', json.data.mensaje,'success'); }
+    } else { showMsg('rec-msg', json.error,'error'); }
+  } catch(e) { showMsg('rec-msg','No se pudo conectar','error'); }
+}
+
+function enterApp() {
+  document.getElementById('login-screen').style.display    = 'none';
+  document.getElementById('recuperar-screen').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  if (medicoData) populateSidebar(medicoData);
+  loadDashboard();
+}
+
+function doLogout() {
+  localStorage.removeItem('medico_token'); localStorage.removeItem('medico_id');
+  medicoToken=''; medicoId=''; medicoData=null; location.reload();
+}
+
+function populateSidebar(m) {
+  document.getElementById('sb-name').textContent = (m.titulo||'')+' '+(m.nombre||'')+' '+(m.apellido||'');
+  document.getElementById('sb-spec').textContent = m.especialidad || '—';
+  const av = document.getElementById('sb-avatar');
+  if (m.foto_perfil) { av.innerHTML = '<img src="'+m.foto_perfil+'">'; }
+  else { av.textContent = ((m.nombre||'')[0]||'')+((m.apellido||'')[0]||''); }
+}
+
+function showSection(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-'+name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'perfil')   loadPerfil();
+  if (name === 'reservas') loadReservas();
+}
+
+async function loadDashboard() {
+  try {
+    const res  = await fetch(API + '?action=medico_perfil', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) { doLogout(); return; }
+    medicoData = json.data; populateSidebar(medicoData);
+    document.getElementById('dash-saludo').textContent = 'Hola, '+(medicoData.nombre||'')+' 👋';
+    document.getElementById('stat-tarifa').textContent  = medicoData.tarifa ? '$'+parseFloat(medicoData.tarifa).toFixed(2) : '—';
+    document.getElementById('stat-reservas').textContent = medicoData.total_reservas ?? '0';
+    const activo = medicoData.estado === 'activo';
+    document.getElementById('estado-toggle').checked = activo;
+    document.getElementById('estado-label').textContent = activo ? '✅ Perfil activo — visible para pacientes' : '⏸ Perfil pausado — no recibes nuevas reservas';
+    document.getElementById('stat-estado').innerHTML = activo ? '<span style="color:var(--green-mid)">● Activo</span>' : '<span style="color:var(--muted)">● Pausado</span>';
+  } catch(e) {}
+}
+
+async function toggleEstado() {
+  const activo = document.getElementById('estado-toggle').checked;
+  try {
+    const res  = await fetch(API + '?action=medico_toggle_estado', {method:'POST',headers:authHeaders(),body:JSON.stringify({estado: activo?'activo':'pendiente'})});
+    const json = await res.json();
+    if (json.ok) {
+      document.getElementById('estado-label').textContent = activo ? '✅ Perfil activo — visible para pacientes' : '⏸ Perfil pausado — no recibes nuevas reservas';
+      document.getElementById('stat-estado').innerHTML = activo ? '<span style="color:var(--green-mid)">● Activo</span>' : '<span style="color:var(--muted)">● Pausado</span>';
+    }
+  } catch(e) {}
+}
+
+async function loadPerfil() {
+  try {
+    const res  = await fetch(API + '?action=medico_perfil', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) return;
+    const m = json.data;
+    document.getElementById('p-nombre').value     = m.nombre      || '';
+    document.getElementById('p-apellido').value   = m.apellido    || '';
+    document.getElementById('p-telefono').value   = m.telefono    || '';
+    document.getElementById('p-biografia').value  = m.biografia   || '';
+    document.getElementById('p-tarifa').value     = m.tarifa      || '';
+    document.getElementById('p-num-cuenta').value = m.numero_cuenta  || '';
+    document.getElementById('p-cedula').value     = m.cedula_titular || '';
+    document.getElementById('p-titular').value    = m.nombre_titular || '';
+    setSelect('p-ciudad',      m.ciudad);
+    setSelect('p-especialidad', m.especialidad);
+    setSelect('p-experiencia',  m.anos_experiencia);
+    setSelect('p-banco',        m.banco);
+    setSelect('p-tipo-cuenta',  m.tipo_cuenta);
+    setSelect('p-duracion',     m.duracion_minutos);
+  } catch(e) {}
+}
+
+function setSelect(id, val) {
+  const sel = document.getElementById(id);
+  if (!sel || !val) return;
+  for (let opt of sel.options) { if (opt.value==val||opt.text==val) { sel.value=opt.value; break; } }
+}
+
+async function guardarPerfil() {
+  const payload = {
+    nombre:           document.getElementById('p-nombre').value,
+    apellido:         document.getElementById('p-apellido').value,
+    telefono:         document.getElementById('p-telefono').value,
+    ciudad:           document.getElementById('p-ciudad').value,
+    especialidad:     document.getElementById('p-especialidad').value,
+    anos_experiencia: document.getElementById('p-experiencia').value,
+    biografia:        document.getElementById('p-biografia').value,
+    tarifa:           document.getElementById('p-tarifa').value,
+    duracion_minutos: document.getElementById('p-duracion').value,
+    banco:            document.getElementById('p-banco').value,
+    tipo_cuenta:      document.getElementById('p-tipo-cuenta').value,
+    numero_cuenta:    document.getElementById('p-num-cuenta').value,
+    cedula_titular:   document.getElementById('p-cedula').value,
+    nombre_titular:   document.getElementById('p-titular').value,
+  };
+  try {
+    const res  = await fetch(API + '?action=medico_actualizar', {method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});
+    const json = await res.json();
+    if (json.ok) { showMsg('perfil-msg','✅ Perfil actualizado correctamente','success'); populateSidebar({...medicoData,...payload}); }
+    else { showMsg('perfil-msg', json.error||'Error al guardar','error'); }
+  } catch(e) { showMsg('perfil-msg','No se pudo conectar','error'); }
+}
+
+async function loadReservas() {
+  const c = document.getElementById('reservas-container');
+  c.innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const res  = await fetch(API + '?action=medico_perfil', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok || !json.data.reservas || !json.data.reservas.length) {
+      c.innerHTML = '<div class="empty"><div class="empty-icon">📅</div>Aún no tienes reservas agendadas</div>'; return;
+    }
+    c.innerHTML = '<div class="reservas-list">'+json.data.reservas.map(r => {
+      const puedeCon = r.estado_consulta === 'agendada' && r.estado_pago === 'en_custodia';
+      const limite   = r.limite_confirmacion ? new Date(r.limite_confirmacion).toLocaleString('es-EC') : '—';
+      return `
+      <div class="reserva-card" id="rc-${r.id}">
+        <div style="flex:1">
+          <div style="font-size:15px;font-weight:500;margin-bottom:4px">👤 ${r.paciente||'Paciente'}</div>
+          <div style="font-size:13px;color:var(--muted)">📅 ${r.horario}</div>
+          <div style="font-size:13px;color:var(--muted)">💰 Recibirás: <strong>$${parseFloat(r.monto_medico).toFixed(2)}</strong></div>
+          ${r.motivo?`<div style="font-size:13px;color:var(--muted);margin-top:2px">📋 ${r.motivo}</div>`:''}
+          ${puedeCon?`<div style="font-size:12px;color:var(--amber);margin-top:4px">⏱ Confirmar antes de: ${limite}</div>`:''}
+          ${r.estado_consulta==='no_realizada'?`<div style="font-size:12px;color:var(--red);margin-top:4px">⚠️ ${r.notas_cancelacion||'No confirmada a tiempo'}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+          <span class="badge ${r.estado_pago==='pagado'?'badge-green':r.estado_pago==='reembolsado'?'badge-red':r.estado_pago==='en_custodia'?'badge-amber':'badge-blue'}">${r.estado_pago==='en_custodia'?'💰 En custodia':r.estado_pago}</span>
+          <span class="badge ${r.estado_consulta==='confirmada'?'badge-green':r.estado_consulta==='no_realizada'?'badge-red':r.estado_consulta==='cancelada'?'badge-red':'badge-blue'}">${r.estado_consulta}</span>
+          ${puedeCon?`<button class="btn btn-green" style="font-size:12px;padding:7px 14px" onclick="confirmarConsulta(${r.id})">✓ Confirmar consulta</button>`:''}
+          ${r.sala_video ? puedeIniciarVideo(r.horario) ? `<button class="btn-video" onclick="iniciarVideo('${r.sala_video}','${(r.paciente||'').replace(/'/g,'')}')" title="Abrir videollamada">📹 Iniciar videollamada</button>` : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 8px;border:1px dashed var(--border);border-radius:8px;max-width:140px">📹 Video disponible<br>${proximoHorario(r.horario)}</div>` : ''}
+        </div>
+      </div>`}).join('')+'</div>';
+  } catch(e) { c.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar</div>'; }
+}
+
+async function confirmarConsulta(reservaId) {
+  if (!confirm('¿Confirmas que realizaste esta consulta? Al hacerlo, el pago será liberado a tu cuenta.')) return;
+  try {
+    const res  = await fetch(API + '?action=confirmar_consulta', {
+      method:'POST', headers: authHeaders(),
+      body: JSON.stringify({reserva_id: reservaId})
+    });
+    const json = await res.json();
+    if (json.ok) {
+      alert('✅ ' + json.data.mensaje + '\n\nMonto a recibir: ' + json.data.monto_recibido);
+      loadReservas();
+      loadDashboard();
+    } else {
+      alert('Error: ' + json.error);
+    }
+  } catch(e) { alert('No se pudo conectar con el servidor'); }
+}
+
+function checkStrength(val) {
+  let s=0;
+  if(val.length>=8)s++;if(/[A-Z]/.test(val))s++;if(/[0-9]/.test(val))s++;if(/[^A-Za-z0-9]/.test(val))s++;
+  const bar=document.getElementById('strength-bar');
+  bar.style.width=(s*25)+'%';
+  bar.style.background=['','#E24B4A','#EF9F27','#1D9E75','#0D7A5F'][s]||'';
+}
+
+async function cambiarPassword() {
+  const actual=document.getElementById('pass-actual').value;
+  const nueva=document.getElementById('pass-nueva').value;
+  const confirma=document.getElementById('pass-confirma').value;
+  if(!actual||!nueva||!confirma){showMsg('pass-msg','Completa todos los campos','error');return;}
+  if(nueva.length<8){showMsg('pass-msg','Mínimo 8 caracteres','error');return;}
+  if(nueva!==confirma){showMsg('pass-msg','Las contraseñas no coinciden','error');return;}
+  try {
+    const res  = await fetch(API+'?action=medico_cambiar_pass',{method:'POST',headers:authHeaders(),body:JSON.stringify({password_actual:actual,password_nueva:nueva})});
+    const json = await res.json();
+    if(json.ok){
+      showMsg('pass-msg','✅ Contraseña actualizada correctamente','success');
+      document.getElementById('pass-actual').value='';document.getElementById('pass-nueva').value='';document.getElementById('pass-confirma').value='';
+      document.getElementById('strength-bar').style.width='0';
+    } else { showMsg('pass-msg',json.error||'Error al cambiar contraseña','error'); }
+  } catch(e){showMsg('pass-msg','No se pudo conectar','error');}
+}
+
+if (medicoToken && medicoId) { document.getElementById('login-screen').style.display='none'; enterApp(); }
+
+// Permite iniciar el video 30 min antes hasta 2h después del horario
+function puedeIniciarVideo(horarioStr) {
+  if (!horarioStr) return false;
+  // horarioStr puede ser "Lunes 08:00" o "2025-01-15 08:00:00"
+  const ahora = new Date();
+  // Intentar parsear como fecha completa
+  let fechaConsulta = new Date(horarioStr);
+  if (isNaN(fechaConsulta.getTime())) {
+    // Es formato "Lunes 08:00" — solo comparar hora del día
+    const match = horarioStr.match(/(\d{1,2}):(\d{2})/);
+    if (!match) return true; // si no se puede parsear, mostrar siempre
+    const hConsulta = parseInt(match[1]);
+    const mConsulta = parseInt(match[2]);
+    const hAhora = ahora.getHours();
+    const mAhora = ahora.getMinutes();
+    const minConsulta = hConsulta * 60 + mConsulta;
+    const minAhora    = hAhora * 60 + mAhora;
+    return minAhora >= (minConsulta - 30) && minAhora <= (minConsulta + 120);
+  }
+  const diff = (ahora - fechaConsulta) / 60000; // diferencia en minutos
+  return diff >= -30 && diff <= 120; // -30min antes hasta 2h después
+}
+
+function proximoHorario(horarioStr) {
+  if (!horarioStr) return '';
+  const match = horarioStr.match(/(\d{1,2}):(\d{2})/);
+  if (!match) return 'en el horario agendado';
+  const h = parseInt(match[1]);
+  const m = parseInt(match[2]);
+  const desde = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+  const hastaH = m >= 30 ? h : h - 1;
+  const hastaM = m >= 30 ? m - 30 : m + 30;
+  return `disponible desde ${String(hastaH<0?0:hastaH).padStart(2,'0')}:${String(hastaM<0?0:hastaM).padStart(2,'0')}`;
+}
+
+function iniciarVideo(sala, paciente) {
+  const url = 'https://meet.jit.si/' + sala + '#config.prejoinPageEnabled=false&config.startWithVideoMuted=false&config.startWithAudioMuted=false';
+  window.open(url, '_blank', 'noopener');
+}
+function cerrarVideo() {
+  document.getElementById('video-overlay').classList.remove('open');
+  document.getElementById('video-frame').src = '';
+}
+document.addEventListener('keydown', e => { if(e.key==='Escape') cerrarVideo(); });
+
+</script>
+
+<!-- VIDEO OVERLAY — Jitsi Meet embebido -->
+<div class="video-overlay" id="video-overlay">
+  <div class="video-header">
+    <h3 id="video-title">Consulta en curso</h3>
+    <button class="video-close" onclick="cerrarVideo()">✕</button>
+  </div>
+  <iframe id="video-frame" class="video-frame" allow="camera; microphone; display-capture; autoplay; clipboard-write" allowfullscreen></iframe>
+  <p style="color:rgba(255,255,255,.5);font-size:12px;margin-top:12px">Powered by Jitsi Meet · Cifrado de extremo a extremo</p>
+</div>
+
+</body>
+</html>

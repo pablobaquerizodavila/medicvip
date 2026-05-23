@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buscar Médico — MedicOnline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #0D7A5F; --green-light: #E6F5F1; --green-mid: #1D9E75;
+    --green-dark: #094D3B; --cream: #FAF8F4; --ink: #1A1A18;
+    --muted: #6B6B66; --border: rgba(26,26,24,.11); --white: #fff;
+    --radius: 14px; --font-display: 'DM Serif Display', serif; --font-body: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--cream); color: var(--ink); }
+
+  /* NAV */
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 16px 40px; background: var(--white); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; }
+  .logo { font-family: var(--font-display); font-size: 20px; text-decoration: none; color: var(--ink); }
+  .logo em { color: var(--green-mid); font-style: normal; }
+  .nav-right { display: flex; gap: 10px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 20px; border-radius: 100px; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; transition: all .2s; border: 1.5px solid transparent; }
+  .btn-outline { border-color: var(--border); color: var(--ink); background: transparent; }
+  .btn-outline:hover { border-color: var(--green-mid); color: var(--green); }
+  .btn-solid { background: var(--green-mid); color: var(--white); border-color: var(--green-mid); }
+  .btn-solid:hover { background: var(--green-dark); }
+  .btn-large { padding: 13px 28px; font-size: 15px; }
+
+  /* SEARCH HERO */
+  .search-hero { background: var(--ink); color: var(--white); padding: 48px 40px 64px; }
+  .search-hero h1 { font-family: var(--font-display); font-size: clamp(28px,4vw,48px); margin-bottom: 8px; }
+  .search-hero h1 em { color: #5DCAA5; font-style: italic; }
+  .search-hero p { color: rgba(255,255,255,.55); font-size: 15px; margin-bottom: 28px; }
+  .search-box { display: flex; gap: 10px; max-width: 700px; background: var(--white); padding: 8px; border-radius: 100px; }
+  .search-box input { flex: 1; border: none; outline: none; font-family: var(--font-body); font-size: 15px; color: var(--ink); background: transparent; padding: 6px 12px; }
+  .search-box input::placeholder { color: #999; }
+  .search-box button { background: var(--green-mid); color: var(--white); border: none; padding: 12px 28px; border-radius: 100px; font-family: var(--font-body); font-size: 14px; font-weight: 500; cursor: pointer; transition: background .2s; white-space: nowrap; }
+  .search-box button:hover { background: var(--green-dark); }
+  .quick-filters { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+  .qf { padding: 6px 16px; border: 1px solid rgba(255,255,255,.2); border-radius: 100px; font-size: 13px; color: rgba(255,255,255,.7); cursor: pointer; transition: all .2s; background: transparent; font-family: var(--font-body); }
+  .qf:hover, .qf.on { background: rgba(255,255,255,.12); color: var(--white); border-color: rgba(255,255,255,.4); }
+
+  /* LAYOUT */
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 0; min-height: calc(100vh - 200px); }
+
+  /* SIDEBAR FILTERS */
+  .filter-sidebar { padding: 28px 24px; border-right: 1px solid var(--border); background: var(--white); position: sticky; top: 61px; height: calc(100vh - 61px); overflow-y: auto; }
+  .filter-section { margin-bottom: 28px; }
+  .filter-section h3 { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 12px; }
+  .filter-option { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; transition: background .15s; }
+  .filter-option:hover { background: var(--cream); }
+  .filter-option input[type=radio], .filter-option input[type=checkbox] { accent-color: var(--green-mid); cursor: pointer; }
+  .range-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  input[type=range] { width: 100%; accent-color: var(--green-mid); }
+  .filter-divider { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  .clear-filters { font-size: 13px; color: var(--green); cursor: pointer; background: none; border: none; font-family: var(--font-body); padding: 0; }
+  .clear-filters:hover { text-decoration: underline; }
+
+  /* RESULTS */
+  .results-area { padding: 28px 32px; }
+  .results-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+  .results-count { font-size: 15px; }
+  .results-count strong { font-weight: 500; }
+  .sort-select { padding: 8px 14px; border: 1px solid var(--border); border-radius: 8px; font-family: var(--font-body); font-size: 13px; background: var(--white); color: var(--ink); cursor: pointer; }
+
+  /* DOCTOR CARD */
+  .doctor-card {
+    background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; margin-bottom: 14px; display: grid; grid-template-columns: auto 1fr auto;
+    gap: 20px; align-items: start; transition: all .2s; cursor: default;
+  }
+  .doctor-card:hover { box-shadow: 0 8px 32px rgba(0,0,0,.07); transform: translateY(-2px); }
+  .dc-avatar { width: 72px; height: 72px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 22px; flex-shrink: 0; }
+  .av-green { background: linear-gradient(135deg,#E1F5EE,#9FE1CB); color: var(--green-dark); }
+  .av-blue { background: linear-gradient(135deg,#E6F1FB,#B5D4F4); color: #0C447C; }
+  .av-pink { background: linear-gradient(135deg,#FBEAF0,#F4C0D1); color: #72243E; }
+  .av-amber { background: linear-gradient(135deg,#FAEEDA,#FAC775); color: #633806; }
+  .av-purple { background: linear-gradient(135deg,#EEEDFE,#CECBF6); color: #3C3489; }
+  .dc-body { min-width: 0; }
+  .dc-top-row { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+  .dc-name { font-size: 17px; font-weight: 500; }
+  .dc-verified { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; background: var(--green-light); color: var(--green); padding: 3px 10px; border-radius: 100px; font-weight: 500; }
+  .dc-spec { font-size: 14px; color: var(--muted); margin-bottom: 6px; }
+  .dc-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 10px; }
+  .dc-meta-item { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); }
+  .dc-meta-item strong { color: var(--ink); font-weight: 500; }
+  .dc-bio { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 14px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .dc-slots-label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+  .dc-slots { display: flex; gap: 6px; flex-wrap: wrap; }
+  .slot-btn { padding: 6px 14px; border: 1px solid var(--border); border-radius: 100px; font-size: 13px; cursor: pointer; background: transparent; color: var(--muted); font-family: var(--font-body); transition: all .2s; }
+  .slot-btn:hover { border-color: var(--green-mid); color: var(--green); }
+  .slot-btn.picked { background: var(--green-mid); border-color: var(--green-mid); color: var(--white); }
+  .dc-actions { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; flex-shrink: 0; }
+  .dc-price { font-family: var(--font-display); font-size: 22px; text-align: right; }
+  .dc-price span { font-family: var(--font-body); font-size: 12px; color: var(--muted); font-weight: 400; display: block; }
+  .dc-book-btn { background: var(--ink); color: var(--white); border: none; padding: 10px 22px; border-radius: 100px; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .2s; white-space: nowrap; }
+  .dc-book-btn:hover { background: var(--green-mid); }
+  .dc-profile-btn { font-size: 13px; color: var(--green); background: none; border: none; cursor: pointer; font-family: var(--font-body); }
+  .dc-profile-btn:hover { text-decoration: underline; }
+  .star { color: #EF9F27; }
+
+  /* BOOKING MODAL */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(10,10,10,.6); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--white); border-radius: 20px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; animation: slideUp .3s ease; }
+  .modal-header { padding: 24px 28px 0; display: flex; align-items: flex-start; justify-content: space-between; }
+  .modal-header h2 { font-family: var(--font-display); font-size: 22px; }
+  .modal-close { width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border); background: transparent; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--muted); transition: all .2s; flex-shrink: 0; }
+  .modal-close:hover { background: var(--cream); }
+  .modal-body { padding: 20px 28px 28px; }
+  .modal-doc-info { display: flex; gap: 14px; align-items: center; padding: 16px; background: var(--cream); border-radius: 12px; margin-bottom: 20px; }
+  .modal-avatar { width: 52px; height: 52px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 18px; flex-shrink: 0; }
+  .modal-slot-info { background: var(--green-light); border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--green-dark); }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-group label { font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .form-group input, .form-group select, .form-group textarea { padding: 10px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: var(--font-body); font-size: 14px; color: var(--ink); background: var(--white); }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--green-mid); }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .modal-footer { padding: 0 28px 28px; }
+  .modal-total { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: var(--cream); border-radius: 12px; margin-bottom: 14px; }
+  .modal-total-label { font-size: 13px; color: var(--muted); }
+  .modal-total-amount { font-family: var(--font-display); font-size: 22px; }
+  .confirm-btn { width: 100%; padding: 14px; background: var(--green-mid); color: var(--white); border: none; border-radius: 100px; font-family: var(--font-body); font-size: 15px; font-weight: 500; cursor: pointer; transition: all .2s; }
+  .confirm-btn:hover { background: var(--green-dark); }
+
+  /* SUCCESS MODAL */
+  .success-modal { text-align: center; padding: 48px 32px; }
+  .success-circle { width: 72px; height: 72px; background: var(--green-light); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 30px; margin: 0 auto 20px; }
+  .success-modal h2 { font-family: var(--font-display); font-size: 26px; margin-bottom: 10px; }
+  .success-modal p { font-size: 14px; color: var(--muted); line-height: 1.7; max-width: 360px; margin: 0 auto 24px; }
+  .success-detail { background: var(--cream); border-radius: 12px; padding: 16px; text-align: left; margin-bottom: 24px; }
+  .success-detail-row { display: flex; justify-content: space-between; font-size: 13px; padding: 6px 0; }
+  .success-detail-row:not(:last-child) { border-bottom: 1px solid var(--border); }
+  .success-detail-row span:first-child { color: var(--muted); }
+  .success-detail-row span:last-child { font-weight: 500; }
+
+  /* EMPTY STATE */
+  .empty-state { text-align: center; padding: 80px 40px; }
+  .empty-state p { color: var(--muted); font-size: 15px; margin-top: 12px; }
+
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    .filter-sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--border); }
+    .doctor-card { grid-template-columns: auto 1fr; }
+    .dc-actions { grid-column: 1/-1; flex-direction: row; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 14px; }
+    nav { padding: 14px 20px; }
+    .search-hero { padding: 36px 20px 48px; }
+    .results-area { padding: 20px; }
+  }
+  @media (max-width: 600px) {
+    .doctor-card { grid-template-columns: 1fr; }
+    .dc-avatar { display: none; }
+  }
+
+  /* VIDEO OVERLAY */
+  .video-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:500;flex-direction:column;align-items:center;justify-content:center;padding:20px}
+  .video-overlay.open{display:flex}
+  .video-header{display:flex;align-items:center;justify-content:space-between;width:100%;max-width:960px;padding:0 0 14px;color:#fff}
+  .video-header h3{font-size:16px;font-weight:500}
+  .video-close{background:rgba(255,255,255,.12);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+  .video-close:hover{background:rgba(255,255,255,.25)}
+  .video-frame{width:100%;max-width:960px;height:70vh;border-radius:12px;overflow:hidden;border:none}
+  /* UNIRSE MODAL */
+  .unirse-overlay{display:none;position:fixed;inset:0;background:rgba(10,10,10,.6);z-index:300;align-items:center;justify-content:center;padding:20px}
+  .unirse-overlay.open{display:flex}
+  .unirse-box{background:#fff;border-radius:20px;padding:32px;width:100%;max-width:440px;animation:slideUp .3s ease}
+
+  /* TEST MODE */
+  .test-banner{display:flex;align-items:center;gap:8px;background:#FFF8E6;border:1.5px solid #F5C842;border-radius:10px;padding:10px 14px;margin-bottom:16px}
+  .test-badge{background:#F5C842;color:#633806;font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.05em;flex-shrink:0}
+  .btn-test{width:100%;padding:14px;background:#F5C842;color:#1A1A18;border:none;border-radius:100px;font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-test:hover{background:#E6B800;transform:translateY(-1px)}
+  .btn-skip{width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px dashed var(--border);border-radius:100px;font-family:var(--font-body);font-size:13px;cursor:pointer;margin-top:8px;transition:all .2s}
+  .btn-skip:hover{border-color:var(--green-mid);color:var(--green)}
+
+  /* EMERGENCIAS */
+  .emerg-tab{display:inline-flex;align-items:center;gap:7px;background:#FEF2F2;color:#C0392B;border:1.5px solid #FECACA;padding:9px 20px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
+  .emerg-tab:hover{background:#FEE2E2;border-color:#FCA5A5}
+  .emerg-tab-dot{width:8px;height:8px;border-radius:50%;background:#EF4444;animation:emergBlink 1s infinite}
+  @keyframes emergBlink{0%,100%{opacity:1}50%{opacity:.3}}
+  .emerg-section{display:none;padding:32px 0}
+  .emerg-section.open{display:block}
+  .emerg-header-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px}
+  .emerg-title{display:flex;align-items:center;gap:10px}
+  .emerg-title h2{font-size:22px;font-family:var(--font-display);color:#7F1D1D}
+  .emerg-subtitle{font-size:13px;color:#B91C1C;margin-top:2px}
+  .emerg-refresh{background:transparent;border:1.5px solid #FECACA;color:#C0392B;padding:7px 16px;border-radius:100px;font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:6px}
+  .emerg-refresh:hover{background:#FEF2F2}
+  .emerg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .emerg-card{background:#fff;border:2px solid #FECACA;border-radius:20px;padding:22px;position:relative;overflow:hidden;transition:all .25s}
+  .emerg-card:hover{border-color:#EF4444;box-shadow:0 8px 32px rgba(239,68,68,.12);transform:translateY(-2px)}
+  .emerg-card::before{content:'';position:absolute;top:0;right:0;width:80px;height:80px;background:radial-gradient(circle,rgba(239,68,68,.06),transparent 70%)}
+  .emerg-live{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:600;letter-spacing:1.5px;text-transform:uppercase;color:#EF4444;background:#FEF2F2;padding:3px 10px;border-radius:100px;margin-bottom:14px}
+  .emerg-live-dot{width:5px;height:5px;border-radius:50%;background:#EF4444;animation:emergBlink 1s infinite}
+  .emerg-doc-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+  .emerg-avatar{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#FEE2E2,#FECACA);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#C0392B;flex-shrink:0;overflow:hidden}
+  .emerg-avatar img{width:100%;height:100%;object-fit:cover}
+  .emerg-doc-name{font-size:16px;font-weight:600;color:var(--text);font-family:var(--font-display)}
+  .emerg-doc-spec{font-size:12px;color:var(--muted);margin-top:2px}
+  .emerg-price{display:flex;align-items:baseline;gap:4px;margin-bottom:16px}
+  .emerg-price-val{font-size:28px;font-weight:700;color:#C0392B;font-family:var(--font-display)}
+  .emerg-price-label{font-size:12px;color:var(--muted)}
+  .btn-emerg-book{width:100%;padding:13px;background:linear-gradient(135deg,#EF4444,#C0392B);color:#fff;border:none;border-radius:100px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-body);transition:all .25s;display:flex;align-items:center;justify-content:center;gap:8px}
+  .btn-emerg-book:hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(239,68,68,.35)}
+  .emerg-empty{text-align:center;padding:56px 20px;color:var(--muted)}
+  .emerg-empty-icon{font-size:40px;margin-bottom:12px}
+  /* Modal emergencia */
+  .emerg-modal-header{background:linear-gradient(135deg,#7F1D1D,#C0392B);padding:24px 28px;margin:-28px -28px 24px;border-radius:20px 20px 0 0}
+  .emerg-modal-header h2{color:#fff;font-size:20px;margin:0}
+  .emerg-modal-header p{color:rgba(255,255,255,.75);font-size:13px;margin:4px 0 0}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="index.html?v=2" class="logo">Medic<em>Online</em></a>
+  <div class="nav-right">
+    <a href="registro-medico.html?v=2" class="btn btn-outline">Soy médico</a>
+    <button class="btn btn-outline" onclick="abrirUnirse()" style="display:inline-flex;align-items:center;gap:6px">📹 Mi consulta</button>
+    <button class="emerg-tab" onclick="toggleEmergSection()"><span class="emerg-tab-dot"></span>🚨 Emergencia</button>
+  </div>
+</nav>
+
+<div class="search-hero">
+  <h1>Encuentra tu <em>especialista ideal</em></h1>
+  <p>Consulta con médicos verificados por videollamada. Disponibilidad hoy.</p>
+  <div class="search-box">
+    <input type="text" id="main-search" placeholder="Buscar por especialidad, médico o síntoma..." oninput="filterDoctors()">
+    <button onclick="filterDoctors()">Buscar médico</button>
+  </div>
+  <div class="quick-filters">
+    <button class="qf on" onclick="setSpec('Todos',this)">Todos</button>
+    <button class="qf" onclick="setSpec('Medicina general',this)">Medicina general</button>
+    <button class="qf" onclick="setSpec('Pediatría',this)">Pediatría</button>
+    <button class="qf" onclick="setSpec('Psicología clínica',this)">Psicología</button>
+    <button class="qf" onclick="setSpec('Cardiología',this)">Cardiología</button>
+    <button class="qf" onclick="setSpec('Dermatología',this)">Dermatología</button>
+    <button class="qf" onclick="setSpec('Traumatología',this)">Traumatología</button>
+  </div>
+</div>
+
+<div class="layout">
+  <!-- FILTERS SIDEBAR -->
+  <aside class="filter-sidebar">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h3 style="font-size:14px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--ink)">Filtros</h3>
+      <button class="clear-filters" onclick="clearFilters()">Limpiar todo</button>
+    </div>
+
+    <div class="filter-section">
+      <h3>Precio por consulta</h3>
+      <div class="range-row"><span>$0</span><span id="price-val">$100</span></div>
+      <input type="range" min="0" max="100" value="100" id="price-range" oninput="updatePrice(this.value)">
+    </div>
+
+    <hr class="filter-divider">
+    <div class="filter-section">
+      <h3>Calificación mínima</h3>
+      <div class="filter-option"><input type="radio" name="rating" value="0" checked onchange="filterDoctors()"> <span>Cualquier calificación</span></div>
+      <div class="filter-option"><input type="radio" name="rating" value="4" onchange="filterDoctors()"> <span>⭐ 4.0 o más</span></div>
+      <div class="filter-option"><input type="radio" name="rating" value="4.5" onchange="filterDoctors()"> <span>⭐ 4.5 o más</span></div>
+      <div class="filter-option"><input type="radio" name="rating" value="4.8" onchange="filterDoctors()"> <span>⭐ 4.8 o más</span></div>
+    </div>
+
+    <hr class="filter-divider">
+    <div class="filter-section">
+      <h3>Ciudad</h3>
+      <div class="filter-option"><input type="checkbox" value="Quito" onchange="filterDoctors()"> <span>Quito</span></div>
+      <div class="filter-option"><input type="checkbox" value="Guayaquil" onchange="filterDoctors()"> <span>Guayaquil</span></div>
+      <div class="filter-option"><input type="checkbox" value="Cuenca" onchange="filterDoctors()"> <span>Cuenca</span></div>
+      <div class="filter-option"><input type="checkbox" value="Ambato" onchange="filterDoctors()"> <span>Ambato</span></div>
+    </div>
+
+    <hr class="filter-divider">
+    <div class="filter-section">
+      <h3>Disponibilidad</h3>
+      <div class="filter-option"><input type="radio" name="avail" value="any" checked onchange="filterDoctors()"> <span>Cualquier día</span></div>
+      <div class="filter-option"><input type="radio" name="avail" value="today" onchange="filterDoctors()"> <span>Hoy</span></div>
+      <div class="filter-option"><input type="radio" name="avail" value="week" onchange="filterDoctors()"> <span>Esta semana</span></div>
+    </div>
+
+    <hr class="filter-divider">
+    <div class="filter-section">
+      <h3>Idioma</h3>
+      <div class="filter-option"><input type="checkbox"> <span>Español</span></div>
+      <div class="filter-option"><input type="checkbox"> <span>Inglés</span></div>
+      <div class="filter-option"><input type="checkbox"> <span>Portugués</span></div>
+    </div>
+  </aside>
+
+  <!-- RESULTS -->
+  <div class="results-area">
+    <div class="results-header">
+      <p class="results-count">Mostrando <strong id="result-count">5</strong> médicos disponibles</p>
+      <select class="sort-select" onchange="filterDoctors()">
+        <option value="rating">Mayor calificación</option>
+        <option value="price_asc">Menor precio</option>
+        <option value="price_desc">Mayor precio</option>
+        <option value="reviews">Más reseñas</option>
+      </select>
+    </div>
+    <div id="doctors-list"></div>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-box">
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<script>
+const API = '/api.php';
+let DOCTORS = [];
+const AV_COLORS = ['av-green','av-blue','av-pink','av-amber','av-purple'];
+
+async function loadDoctors() {
+  document.getElementById('doctors-list').innerHTML = '<div class="empty-state"><div style="font-size:36px">⏳</div><p>Cargando médicos disponibles...</p></div>';
+  try {
+    const res  = await fetch(API + '?action=listar_medicos');
+    const json = await res.json();
+    if (json.ok && json.data.length) {
+      DOCTORS = json.data.map((m, i) => ({
+        id:       m.id,
+        name:     (m.nombre_completo || '').trim(),
+        spec:     m.especialidad || '',
+        exp:      m.anos_experiencia || '',
+        rating:   0, reviews: 0,
+        fee:      parseFloat(m.tarifa) || 0,
+        city:     m.ciudad || '',
+        av:       AV_COLORS[i % AV_COLORS.length],
+        bio:      m.biografia || '',
+        foto:     m.foto_perfil || null,
+        slots:    m.disponibilidad || [],
+        languages: m.idiomas || 'Español',
+        universidad: m.universidad || null,
+        postgrado:   m.postgrado   || null,
+        subespec:    m.subespecialidad || null,
+        verified: m.estado === 'activo',
+      }));
+      const maxFee = Math.max(...DOCTORS.map(d => d.fee), 100);
+      document.getElementById('price-range').max = maxFee;
+      document.getElementById('price-val').textContent = '$' + maxFee;
+      maxPrice = maxFee;
+    } else { DOCTORS = []; }
+  } catch(e) { DOCTORS = []; }
+  filterDoctors();
+}
+
+let activeSpec = 'Todos';
+let maxPrice = 100;
+let selectedSlots = {};
+
+function setSpec(spec, el) {
+  activeSpec = spec;
+  document.querySelectorAll('.qf').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  filterDoctors();
+}
+
+function updatePrice(v) {
+  maxPrice = parseInt(v);
+  document.getElementById('price-val').textContent = '$'+v;
+  filterDoctors();
+}
+
+function clearFilters() {
+  activeSpec = 'Todos';
+  maxPrice = 100;
+  document.getElementById('price-range').value = 100;
+  document.getElementById('price-val').textContent = '$100';
+  document.getElementById('main-search').value = '';
+  document.querySelectorAll('.qf').forEach((b,i)=>b.classList.toggle('on',i===0));
+  document.querySelectorAll('input[name=rating]')[0].checked = true;
+  document.querySelectorAll('input[type=checkbox]').forEach(c=>c.checked=false);
+  filterDoctors();
+}
+
+function filterDoctors() {
+  const q = document.getElementById('main-search').value.toLowerCase();
+  const minRating = parseFloat(document.querySelector('input[name=rating]:checked').value);
+  const cities = [...document.querySelectorAll('.filter-sidebar input[type=checkbox]:checked')].map(c=>c.value);
+  const sort = document.querySelector('.sort-select').value;
+
+  let list = DOCTORS.filter(d => {
+    const specMatch = activeSpec === 'Todos' || d.spec === activeSpec;
+    const priceMatch = d.fee <= maxPrice;
+    const ratingMatch = d.rating >= minRating;
+    const cityMatch = cities.length === 0 || cities.includes(d.city);
+    const qMatch = !q || d.name.toLowerCase().includes(q) || d.spec.toLowerCase().includes(q) || d.city.toLowerCase().includes(q) || d.bio.toLowerCase().includes(q);
+    return specMatch && priceMatch && ratingMatch && cityMatch && qMatch;
+  });
+
+  if(sort === 'rating') list.sort((a,b) => b.rating - a.rating);
+  else if(sort === 'price_asc') list.sort((a,b) => a.fee - b.fee);
+  else if(sort === 'price_desc') list.sort((a,b) => b.fee - a.fee);
+  else if(sort === 'reviews') list.sort((a,b) => b.reviews - a.reviews);
+
+  document.getElementById('result-count').textContent = list.length;
+  renderDoctors(list);
+}
+
+function renderDoctors(list) {
+  const container = document.getElementById('doctors-list');
+  if(!list.length) {
+    container.innerHTML = `<div class="empty-state"><div style="font-size:48px">🔍</div><p>No encontramos médicos con esos criterios.<br>Intenta ajustar los filtros.</p></div>`;
+    return;
+  }
+  container.innerHTML = list.map(d => `
+    <div class="doctor-card" id="card-${d.id}">
+      <div class="dc-avatar ${d.av}" style="${d.foto?'padding:0;overflow:hidden':''}">
+        ${d.foto ? `<img src="${d.foto}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">` : d.name.split(' ').filter((_,i)=>i<2).map(w=>w[0]).join('')}
+      </div>
+      <div class="dc-body">
+        <div class="dc-top-row">
+          <span class="dc-name">${d.name}</span>
+          ${d.verified ? '<span class="dc-verified">✓ Verificado</span>' : '<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:500;background:#F1EFEB;color:var(--muted)">⏳ Pendiente de verificación</span>'}
+        </div>
+        <div style="margin-bottom:6px">
+          <div style="font-size:14px;font-weight:500;color:var(--ink)">${d.spec}${d.subespec ? ' · <span style="font-weight:400">'+d.subespec+'</span>' : ''}</div>
+          ${d.universidad ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">🎓 ${d.universidad}</div>` : ''}
+          ${d.postgrado   ? `<div style="font-size:12px;color:var(--muted);margin-top:1px">📜 ${d.postgrado}</div>`   : ''}
+        </div>
+        <div class="dc-spec">${d.exp?d.exp+' de experiencia · ':''} ${d.city}</div>
+        <div class="dc-meta"><div class="dc-meta-item">🗣 ${d.languages}</div></div>
+        <p class="dc-bio">${d.bio}</p>
+        ${d.slots.length ? `
+          <div class="dc-slots-label">Próximos horarios disponibles</div>
+          <div class="dc-slots">${d.slots.slice(0,5).map(s=>`<button class="slot-btn${selectedSlots[d.id]===s?' picked':''}" onclick="pickSlot(${d.id},'${s}',this)">${s}</button>`).join('')}</div>
+        ` : '<div style="font-size:13px;color:var(--muted)">Sin horarios disponibles por el momento</div>'}
+      </div>
+      <div class="dc-actions">
+        <div class="dc-price">$${parseFloat(d.fee).toFixed(2)}<span>por consulta</span></div>
+        <button class="dc-book-btn" onclick="openBooking(${d.id})">Agendar →</button>
+      </div>
+    </div>`).join('');
+}
+
+function pickSlot(docId, slot, el) {
+  selectedSlots[docId] = slot;
+  document.querySelectorAll(`#card-${docId} .slot-btn`).forEach(b => b.classList.remove('picked'));
+  el.classList.add('picked');
+}
+
+function openBooking(docId) {
+  const d = DOCTORS.find(x => x.id === docId);
+  const slot = selectedSlots[docId] || d.slots[0];
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">
+      <h2>Reservar consulta</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-doc-info">
+        <div class="modal-avatar ${d.av}">${d.name.split(' ').filter((_,i)=>i<2).map(w=>w[0]).join('')}</div>
+        <div>
+          <div style="font-size:15px;font-weight:500">${d.name}</div>
+          <div style="font-size:13px;color:var(--muted)">${d.spec} · ${d.city}</div>
+          <div style="font-size:13px;margin-top:4px"><span class="star">★</span> ${d.rating} · ${d.reviews} reseñas</div>
+        </div>
+      </div>
+      <div class="modal-slot-info">
+        <span style="font-size:20px">📅</span>
+        <div><strong>Horario seleccionado:</strong> ${slot}<br><span style="font-size:12px;opacity:.7">Consulta online · ~30 minutos</span></div>
+      </div>
+
+      <!-- Aviso pago al site -->
+      <div style="background:#F1EFE8;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
+        <span style="font-size:16px;flex-shrink:0">🔒</span>
+        <p style="font-size:12px;color:#444441;line-height:1.6">El pago es procesado de forma segura por <strong>MedicOnline</strong>. Una vez confirmado, recibirás los datos de contacto del médico para coordinar la consulta.</p>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Nombre completo *</label>
+          <input type="text" placeholder="Tu nombre completo">
+        </div>
+        <div class="form-group">
+          <label>Edad</label>
+          <input type="number" placeholder="Ej. 35" min="0" max="120">
+        </div>
+        <div class="form-group">
+          <label>Correo electrónico *</label>
+          <input type="email" placeholder="tu@correo.com">
+        </div>
+        <div class="form-group">
+          <label>Teléfono</label>
+          <input type="tel" placeholder="+593 99 000 0000">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Motivo de consulta *</label>
+        <textarea placeholder="Describe brevemente tus síntomas o el motivo de la consulta..."></textarea>
+      </div>
+      <div class="form-group">
+        <label>¿Tienes alergias o tomas medicamentos?</label>
+        <input type="text" placeholder="Opcional — ayuda al médico a prepararse">
+      </div>
+
+      <!-- Método de pago -->
+      <div style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+        <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Método de pago</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--green-mid);border-radius:10px;cursor:pointer;background:var(--green-light)" id="pay-card-label">
+            <input type="radio" name="pay" value="card" checked style="accent-color:var(--green-mid);flex-shrink:0"> <span style="font-size:13px;font-weight:500">💳 Tarjeta de crédito / débito</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;background:var(--white)" id="pay-paypal-label">
+            <input type="radio" name="pay" value="paypal" style="accent-color:var(--green-mid);flex-shrink:0"> <span style="font-size:13px;font-weight:500">🅿️ PayPal</span>
+          </label>
+        </div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">Pago 100% seguro. Cancelación gratuita hasta 24h antes de la consulta.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-total">
+        <div>
+          <div class="modal-total-label">Total — pagado a MedicOnline</div>
+          <div style="font-size:11px;color:var(--muted)">El médico recibe su parte automáticamente</div>
+        </div>
+        <div class="modal-total-amount">$${d.fee}</div>
+      </div>
+      <div class="test-banner">
+        <span class="test-badge">🧪 MODO PRUEBA</span>
+        <span style="font-size:12px;color:#633806;line-height:1.5">El pago real aún no está activo. Puedes confirmar la reserva directamente para probar la videollamada.</span>
+      </div>
+      <button class="btn-test" onclick="confirmBookingDesdeStep1(${d.id},'${slot}')">🧪 Confirmar reserva sin pago</button>
+      <button class="btn-skip" onclick="showPaymentStep(${d.id},'${slot}')">Ver flujo de pago completo →</button>
+    </div>`;
+  // toggle visual métodos de pago
+  document.querySelectorAll('input[name=pay]').forEach(r => r.addEventListener('change', () => {
+    ['card','paypal'].forEach(v => {
+      const el = document.getElementById('pay-'+v+'-label');
+      if(!el) return;
+      el.style.borderColor = r.value===v ? 'var(--green-mid)' : 'var(--border)';
+      el.style.background  = r.value===v ? 'var(--green-light)' : 'var(--white)';
+    });
+  }));
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+// Guardamos datos del step 1 en memoria para usar desde step 2
+let _bookingForm = {};
+function _captureForm(docId, slot) {
+  const inputs = document.querySelectorAll('#modal-content input, #modal-content textarea, #modal-content select');
+  _bookingForm = {
+    docId, slot,
+    nombre:   inputs[0]?.value.trim() || '',
+    edad:     inputs[1]?.value.trim() || '',
+    email:    inputs[2]?.value.trim() || '',
+    tel:      inputs[3]?.value.trim() || '',
+    motivo:   inputs[4]?.value.trim() || '',
+    alergias: inputs[5]?.value.trim() || '',
+    metodo:   document.querySelector('input[name=pay]:checked')?.value || 'test',
+  };
+  return _bookingForm;
+}
+
+async function confirmBookingDesdeStep1(docId, slot) {
+  const form = _captureForm(docId, slot);
+  if (!form.nombre || !form.email) {
+    alert('Por favor completa al menos tu nombre y correo electrónico.');
+    return;
+  }
+  await _doConfirmBooking(docId, slot, form);
+}
+
+function showPaymentStep(docId, slot) {
+  const d = DOCTORS.find(x => x.id === docId);
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">
+      <h2>Datos de pago</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--cream);border-radius:10px;padding:14px 16px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:13px;color:var(--muted)">Consulta con ${d.name}</div>
+        <div style="font-weight:500;font-size:15px">$${d.fee} USD</div>
+      </div>
+      <div class="form-group">
+        <label>Número de tarjeta</label>
+        <input type="text" placeholder="•••• •••• •••• ••••" maxlength="19">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="form-group">
+          <label>Vencimiento</label>
+          <input type="text" placeholder="MM / AA" maxlength="7">
+        </div>
+        <div class="form-group">
+          <label>CVV</label>
+          <input type="text" placeholder="•••" maxlength="4">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Nombre en la tarjeta</label>
+        <input type="text" placeholder="Como aparece en la tarjeta">
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:12px 14px;background:var(--green-light);border-radius:10px;margin-top:4px">
+        <span style="font-size:16px">🔒</span>
+        <span style="font-size:12px;color:var(--green-dark)">Pago cifrado y procesado por MedicOnline. No almacenamos datos de tarjeta.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <div class="modal-total">
+        <div>
+          <div class="modal-total-label">Total a cobrar</div>
+          <div style="font-size:11px;color:var(--muted)">MedicOnline gestiona la distribución al médico</div>
+        </div>
+        <div class="modal-total-amount">$${d.fee}</div>
+      </div>
+      <button class="confirm-btn" onclick="confirmBooking(${d.id},'${slot}')">Pagar y confirmar consulta</button>
+      <div class="test-banner" style="margin-top:10px;margin-bottom:0">
+        <span class="test-badge">🧪 MODO PRUEBA</span>
+        <button onclick="confirmBookingDesdeStep1(${d.id},'${slot}')" style="font-size:12px;color:#633806;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">Saltar pago y confirmar directo</button>
+      </div>
+    </div>`;
+}
+
+async function confirmBooking(docId, slot) {
+  // Desde step 2: leer form del step 2 (solo datos de tarjeta son nuevos, el resto vino del step 1)
+  const form = _bookingForm.docId === docId ? _bookingForm : _captureForm(docId, slot);
+  if (!form.nombre || !form.email) { alert('Por favor completa nombre y correo'); return; }
+  await _doConfirmBooking(docId, slot, form);
+}
+
+async function _doConfirmBooking(docId, slot, form) {
+  const d = DOCTORS.find(x => x.id === docId);
+
+  // Deshabilitar todos los botones de acción
+  document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b => { b.disabled=true; b.style.opacity='.6'; });
+
+  try {
+    const res  = await fetch(API + '?action=reservar', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        medico_id: d.id, nombre_paciente: form.nombre, email_paciente: form.email,
+        telefono_paciente: form.tel, edad: form.edad, horario: slot,
+        motivo: form.motivo, alergias: form.alergias,
+        metodo_pago: form.metodo || 'test'
+      })
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b=>{b.disabled=false;b.style.opacity='1';}); return; }
+
+    const reservaId   = json.data.reserva_id;
+    const tokenAcceso = json.data.token_acceso;
+    const salaVideo   = json.data.sala_video;
+
+    document.getElementById('modal-content').innerHTML = `
+      <div class="success-modal">
+        <div class="success-circle">✓</div>
+        <h2>¡Reserva confirmada!</h2>
+        <p>Tu pago fue recibido por MedicOnline. Guarda tu número de reserva — lo necesitarás para unirte a la videollamada.</p>
+        <div class="success-detail">
+          <div class="success-detail-row"><span>Médico</span><span>${d.name}</span></div>
+          <div class="success-detail-row"><span>Especialidad</span><span>${d.spec}</span></div>
+          <div class="success-detail-row"><span>Horario</span><span>${slot}</span></div>
+          <div class="success-detail-row"><span>Total pagado</span><span>$${d.fee} USD</span></div>
+          <div class="success-detail-row"><span>N° de reserva</span><span style="font-weight:700;color:var(--green)">#${reservaId}</span></div>
+          <div class="success-detail-row"><span>Código de acceso</span><span style="font-weight:700;color:var(--green);font-family:monospace;font-size:15px;letter-spacing:1px">${tokenAcceso}</span></div>
+          <div class="success-detail-row"><span>Estado</span><span style="color:var(--green-mid);font-weight:500">✓ Pago confirmado</span></div>
+        </div>
+        <div style="background:var(--green-light);border-radius:12px;padding:16px;text-align:left;margin-bottom:16px;border:1.5px solid rgba(13,122,95,.2)">
+          <div style="font-size:11px;font-weight:600;color:var(--green-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📹 Tu enlace de videollamada</div>
+          <div style="font-size:13px;color:var(--green-dark);line-height:1.8;margin-bottom:12px">
+            Úsalo <strong>el día y hora de tu consulta</strong> para conectarte con tu médico:
+          </div>
+          <div style="background:#fff;border-radius:8px;padding:10px 14px;font-size:12px;color:var(--green);font-weight:500;word-break:break-all;border:1px solid rgba(13,122,95,.2);margin-bottom:10px">
+            🔗 meet.jit.si/${salaVideo}
+          </div>
+          <div style="font-size:11px;color:var(--green-dark);opacity:.8;line-height:1.6">
+            ⚠️ No compartas este enlace. Solo tú y el médico deben ingresar a esta sala.
+          </div>
+        </div>
+        <div style="background:#FFF8E6;border-radius:10px;padding:12px 14px;margin-bottom:16px;border:1px solid #F5C842">
+          <div style="font-size:12px;color:#633806;line-height:1.6">
+            📌 <strong>Guarda tu código de acceso:</strong> <span style="font-size:16px;font-weight:700;color:var(--green);font-family:monospace;letter-spacing:1px">${tokenAcceso}</span><br>
+            Lo necesitarás junto con tu correo <strong>${form.email}</strong> para acceder a tu sala desde el botón <em>"📹 Mi consulta"</em> en el menú.
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-solid" onclick="closeModal()" style="border-radius:100px;background:var(--green-mid);border-color:var(--green-mid);color:#fff;padding:12px 24px">Cerrar</button>
+        </div>
+      </div>`;
+  } catch(e) {
+    alert('Error de conexión con el servidor');
+    document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b=>{b.disabled=false;b.style.opacity='1';});
+  }
+}
+
+function closeModal(e) {
+  if(!e || e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+document.addEventListener('keydown', e => { if(e.key === 'Escape') document.getElementById('modal-overlay').classList.remove('open'); });
+
+// Init — cargar desde API
+loadDoctors();
+
+// Read URL param for specialty
+const urlSpec = new URLSearchParams(location.search).get('spec');
+if(urlSpec) {
+  const map = { general:'Medicina general', pediatria:'Pediatría', cardiologia:'Cardiología', dermatologia:'Dermatología', psicologia:'Psicología clínica', ginecologia:'Ginecología', traumatologia:'Traumatología' };
+  if(map[urlSpec]) {
+    activeSpec = map[urlSpec];
+    document.querySelectorAll('.qf').forEach(b => {
+      b.classList.toggle('on', b.textContent.trim() === map[urlSpec].replace('Psicología clínica','Psicología'));
+    });
+    filterDoctors();
+  }
+}
+
+function iniciarVideoDirecto(sala) {
+  const url = 'https://meet.jit.si/' + sala + '#config.prejoinPageEnabled=false';
+  window.open(url, '_blank', 'noopener');
+}
+function cerrarVideoP() {
+  document.getElementById('video-overlay').classList.remove('open');
+  document.getElementById('video-frame-p').src = '';
+}
+function abrirUnirse() {
+  document.getElementById('unirse-overlay').classList.add('open');
+  document.getElementById('unirse-error').style.display='none';
+  document.getElementById('unirse-result').style.display='none';
+  document.getElementById('unirse-id').value='';
+  document.getElementById('unirse-email').value='';
+}
+function closeUnirse(e) {
+  if(e.target===document.getElementById('unirse-overlay'))
+    document.getElementById('unirse-overlay').classList.remove('open');
+}
+async function buscarSala() {
+  const id    = document.getElementById('unirse-id').value.trim();
+  const email = document.getElementById('unirse-email').value.trim();
+  const errEl = document.getElementById('unirse-error');
+  const resEl = document.getElementById('unirse-result');
+  const btn   = document.getElementById('unirse-btn');
+  errEl.style.display='none'; resEl.style.display='none';
+  if (!id || !email) { errEl.textContent='Completa los dos campos'; errEl.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Buscando...';
+  try {
+    const res  = await fetch(API + '?action=paciente_sala&token='+encodeURIComponent(id)+'&email='+encodeURIComponent(email));
+    const json = await res.json();
+    if (!json.ok) { errEl.textContent = json.error || 'No encontrado'; errEl.style.display='block'; }
+    else {
+      const d = json.data;
+      resEl.innerHTML = '<div style="background:var(--green-light);border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid rgba(13,122,95,.2)">'
+        +'<div style="font-size:13px;color:var(--green-dark);margin-bottom:12px"><strong>'+d.medico+'</strong> · '+d.especialidad+'<br>📅 '+d.horario+'</div>'
+        +`<button onclick="iniciarVideoDirecto('${d.sala_video}')" style="width:100%;padding:12px;background:var(--green-mid);color:#fff;border:none;border-radius:100px;font-size:14px;font-weight:500;cursor:pointer;font-family:var(--font-body)">📹 Abrir videollamada</button>`
+        +'</div>';
+      resEl.style.display='block';
+    }
+  } catch(e) { errEl.textContent='Error de conexión'; errEl.style.display='block'; }
+  btn.disabled=false; btn.textContent='Buscar mi sala →';
+}
+
+
+// ── EMERGENCIAS ──────────────────────────────────────────────
+let emergIntervalId = null;
+
+function toggleEmergSection() {
+  const sec = document.getElementById('emerg-section');
+  const isOpen = sec.classList.toggle('open');
+  if (isOpen) {
+    loadEmergencias();
+    emergIntervalId = setInterval(loadEmergencias, 30000); // refresh cada 30s
+  } else {
+    clearInterval(emergIntervalId);
+  }
+}
+
+async function loadEmergencias() {
+  const grid = document.getElementById('emerg-grid');
+  try {
+    const res  = await fetch(API + '?action=listar_emergencias');
+    const json = await res.json();
+    if (!json.ok || !json.data.length) {
+      grid.innerHTML = '<div class="emerg-empty"><div class="emerg-empty-icon">😴</div><p style="font-size:15px;font-weight:500;margin-bottom:6px">Ningún médico disponible ahora</p><p style="font-size:13px">Los médicos se activan manualmente cuando están disponibles. Intenta en unos minutos o agenda una consulta normal.</p></div>';
+      return;
+    }
+    grid.innerHTML = json.data.map(d => `
+      <div class="emerg-card">
+        <div class="emerg-live"><span class="emerg-live-dot"></span>Disponible ahora</div>
+        <div class="emerg-doc-row">
+          <div class="emerg-avatar">${d.foto_perfil ? `<img src="${d.foto_perfil}">` : (d.nombre||'?')[0].toUpperCase()}</div>
+          <div>
+            <div class="emerg-doc-name">${d.titulo||''} ${d.nombre} ${d.apellido}</div>
+            <div class="emerg-doc-spec">${d.especialidad} · ${d.anos_experiencia || '+'} años</div>
+          </div>
+        </div>
+        <div class="emerg-price">
+          <div class="emerg-price-val">$${parseFloat(d.tarifa_final).toFixed(2)}</div>
+          <div class="emerg-price-label">USD · tarifa de emergencia</div>
+        </div>
+        <button class="btn-emerg-book" onclick="abrirReservaEmergencia(${JSON.stringify(d).replace(/"/g,'&quot;')})">
+          🚨 Consultar ahora
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+      </div>`).join('');
+  } catch(e) {
+    grid.innerHTML = '<div class="emerg-empty"><div class="emerg-empty-icon">⚠️</div><p>Error al cargar. Intenta de nuevo.</p></div>';
+  }
+}
+
+function abrirReservaEmergencia(doc) {
+  document.getElementById('modal-content').innerHTML = `
+    <div class="emerg-modal-header">
+      <h2>🚨 Consulta de emergencia</h2>
+      <p>Completa tus datos para conectarte ahora con el médico</p>
+    </div>
+    <div style="margin-bottom:16px;background:#FEF2F2;border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:12px">
+      <div style="font-size:32px">${doc.foto_perfil?`<img src="${doc.foto_perfil}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">`:(doc.nombre||'?')[0].toUpperCase()}</div>
+      <div>
+        <div style="font-weight:600;font-size:15px">${doc.titulo||''} ${doc.nombre} ${doc.apellido}</div>
+        <div style="font-size:12px;color:var(--muted)">${doc.especialidad}</div>
+      </div>
+      <div style="margin-left:auto;text-align:right">
+        <div style="font-size:20px;font-weight:700;color:#C0392B">$${parseFloat(doc.tarifa_final).toFixed(2)}</div>
+        <div style="font-size:11px;color:var(--muted)">USD</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="form-group"><label>Nombre completo *</label><input type="text" id="em-nombre" placeholder="Tu nombre"></div>
+      <div class="form-group"><label>Correo electrónico *</label><input type="email" id="em-email" placeholder="tu@correo.com"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:12px"><label>Motivo de emergencia *</label><textarea id="em-motivo" rows="2" placeholder="Describe brevemente tu urgencia" style="resize:none"></textarea></div>
+    <div class="modal-total" style="margin-bottom:16px">
+      <div><div class="modal-total-label">Total a pagar</div><div style="font-size:11px;color:var(--muted)">Pago en custodia segura</div></div>
+      <div class="modal-total-amount">$${parseFloat(doc.tarifa_final).toFixed(2)}</div>
+    </div>
+    <div style="background:#FFF8E6;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#633806;border:1px solid #F5C842">
+      🧪 <strong>Modo prueba:</strong> Sin pago real activo.
+    </div>
+    <button class="confirm-btn" style="background:linear-gradient(135deg,#EF4444,#C0392B)" onclick="confirmarEmergencia(${doc.id},${doc.tarifa_final})">
+      🚨 Confirmar y conectar ahora
+    </button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+async function confirmarEmergencia(medicoId, tarifa) {
+  const nombre = document.getElementById('em-nombre').value.trim();
+  const email  = document.getElementById('em-email').value.trim();
+  const motivo = document.getElementById('em-motivo').value.trim();
+  if (!nombre || !email) { alert('Por favor completa nombre y correo'); return; }
+  const btn = document.querySelector('#modal-content .confirm-btn');
+  if (btn) { btn.disabled=true; btn.textContent='Conectando...'; }
+  try {
+    const res  = await fetch(API + '?action=reservar_emergencia', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({medico_id:medicoId, nombre_paciente:nombre, email_paciente:email, motivo:motivo||'Emergencia', metodo_pago:'test'})
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error: '+json.error); if(btn){btn.disabled=false;btn.textContent='🚨 Confirmar y conectar ahora';} return; }
+    const sala = json.data.sala_video;
+    const token = json.data.token_acceso;
+    document.getElementById('modal-content').innerHTML = `
+      <div class="success-modal">
+        <div class="success-circle" style="background:#FEE2E2;color:#C0392B">🚨</div>
+        <h2>¡Sala lista!</h2>
+        <p>Tu consulta de emergencia está activa. El médico fue notificado y se unirá en breve.</p>
+        <div style="background:#FEF2F2;border-radius:12px;padding:16px;margin-bottom:16px;border:1.5px solid #FECACA">
+          <div style="font-size:11px;font-weight:600;color:#7F1D1D;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">📹 Tu sala de emergencia</div>
+          <div style="background:#fff;border-radius:8px;padding:10px 14px;font-size:12px;color:#C0392B;font-weight:500;word-break:break-all;border:1px solid #FECACA;margin-bottom:12px">
+            🔗 meet.jit.si/${sala}
+          </div>
+          <button onclick="window.open('https://meet.jit.si/${sala}','_blank','noopener')" style="width:100%;padding:12px;background:linear-gradient(135deg,#EF4444,#C0392B);color:#fff;border:none;border-radius:100px;font-size:14px;font-weight:600;cursor:pointer">
+            🚨 Entrar a la videollamada ahora
+          </button>
+        </div>
+        <div style="background:#FFF8E6;border-radius:10px;padding:10px 14px;font-size:12px;color:#633806;border:1px solid #F5C842">
+          📌 Código de acceso: <strong style="font-family:monospace">${token}</strong> — guárdalo por si necesitas volver a entrar.
+        </div>
+      </div>`;
+    // Refresh emergency list
+    loadEmergencias();
+  } catch(e) {
+    alert('Error de conexión con el servidor');
+    if(btn){btn.disabled=false;btn.textContent='🚨 Confirmar y conectar ahora';}
+  }
+}
+
+</script>
+
+<!-- VIDEO OVERLAY -->
+<div class="video-overlay" id="video-overlay">
+  <div class="video-header">
+    <h3 id="video-title-p">Consulta online</h3>
+    <button class="video-close" onclick="cerrarVideoP()">✕</button>
+  </div>
+  <iframe id="video-frame-p" class="video-frame" allow="camera; microphone; display-capture; autoplay; clipboard-write" allowfullscreen></iframe>
+  <p style="color:rgba(255,255,255,.45);font-size:12px;margin-top:12px">Powered by Jitsi Meet · Cifrado de extremo a extremo</p>
+</div>
+
+<!-- MODAL UNIRSE A CONSULTA -->
+<div class="unirse-overlay" id="unirse-overlay" onclick="closeUnirse(event)">
+  <div class="unirse-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 style="font-family:var(--font-display);font-size:22px">📹 Unirse a mi consulta</h2>
+      <button onclick="document.getElementById('unirse-overlay').classList.remove('open')" style="width:36px;height:36px;border-radius:50%;border:1px solid var(--border);background:transparent;font-size:18px;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:20px;line-height:1.6">Ingresa el código de acceso que recibiste al reservar y tu correo para acceder a tu sala.</p>
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Código de acceso</label>
+      <input type="text" id="unirse-id" placeholder="Ej. A3F2-B841-C920" maxlength="14" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:monospace;letter-spacing:1px;text-transform:uppercase" oninput="this.value=this.value.toUpperCase()">
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:6px">Correo electrónico</label>
+      <input type="email" id="unirse-email" placeholder="El que usaste al reservar" style="width:100%;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-family:var(--font-body)">
+    </div>
+    <div id="unirse-error" style="display:none;background:#FEF2F2;border-radius:8px;padding:10px 14px;font-size:13px;color:#B91C1C;margin-bottom:14px"></div>
+    <div id="unirse-result" style="display:none"></div>
+    <button onclick="buscarSala()" style="width:100%;padding:13px;background:var(--green-mid);color:#fff;border:none;border-radius:100px;font-size:15px;font-weight:500;cursor:pointer;font-family:var(--font-body)" id="unirse-btn">Buscar mi sala →</button>
+  </div>
+</div>
+
+</body>
+</html>
