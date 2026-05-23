@@ -17,11 +17,13 @@ if (!is_file($configFile)) {
 }
 require_once $configFile;
 
+// nginx hace virtual hosting por server_name → mandar Host header explícito
 $url = 'http://127.0.0.1/api.php?action=procesar_reembolsos&cron_key=' . urlencode(CRON_KEY);
 
 $ch = curl_init($url);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+curl_setopt($ch, CURLOPT_HTTPHEADER, ['Host: medicvip.org']);
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 curl_close($ch);
