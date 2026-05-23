@@ -266,11 +266,13 @@ A diferencia del flujo normal (paciente escoge horario futuro), una emergencia c
 
 Llama a `api.php?action=procesar_reembolsos&cron_key=…` con el header `Host: medicvip.org` (necesario porque nginx hace virtual hosting).
 
-### Recordatorios diarios (planeado — Fase 6I)
+### Recordatorios diarios (8:30 AM)
 
 ```cron
 30 8  *  *  *  root  /usr/local/bin/php82 /volume2/web/medicvip/cron_recordatorios.php > /dev/null 2>&1
 ```
+
+Llama a `api.php?action=enviar_recordatorios&cron_key=…`. Para cada reserva con `DATE(horario) = hoy` y `estado_consulta = agendada`, manda un email al paciente con su sala Jitsi y al médico con el detalle del paciente. Marca `recordatorio_enviado=1` para no duplicar.
 
 ---
 
@@ -320,7 +322,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
 - [ ] **Fase 6G — JWT con expiración** para auth admin
 - [ ] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
-- [ ] **Fase 6I — Cron de recordatorios** del día (script existe en api.php, falta scheduling)
+- [x] **Fase 6I — Cron de recordatorios** diarios (8:30 AM via /etc/crontab)
 - [ ] **Fase 6J — Mejoras de UI/UX** y flujo móvil
 
 ---

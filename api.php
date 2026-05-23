@@ -580,6 +580,11 @@ function enviarRecordatorios(): void {
     $db   = getDB();
     $hoy  = date('Y-m-d');
 
+    // Asegurar columna recordatorio_enviado ANTES del SELECT que la usa
+    $chk = $db->query("SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservas' AND COLUMN_NAME='recordatorio_enviado'");
+    if ($chk && (int)$chk->fetch_assoc()['c'] === 0)
+        $db->query("ALTER TABLE reservas ADD COLUMN recordatorio_enviado TINYINT(1) DEFAULT 0");
+
     // Buscar reservas agendadas para hoy que no hayan sido notificadas
     $stmt = $db->prepare("
         SELECT r.id, r.horario, r.sala_video, r.motivo,
@@ -599,11 +604,6 @@ function enviarRecordatorios(): void {
     $stmt->bind_param('s', $hoy);
     $stmt->execute();
     $consultas = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
-
-    // Verificar/crear columna recordatorio_enviado
-    $chk = $db->query("SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservas' AND COLUMN_NAME='recordatorio_enviado'");
-    if ($chk && (int)$chk->fetch_assoc()['c'] === 0)
-        $db->query("ALTER TABLE reservas ADD COLUMN recordatorio_enviado TINYINT(1) DEFAULT 0");
 
     $enviados = 0;
     foreach ($consultas as $c) {
