@@ -196,6 +196,7 @@ Todas las respuestas son JSON con la forma `{ "ok": bool, "data"|"error": ... }`
 | POST | `medico_cambiar_pass` | Cambiar contraseña (requiere actual) |
 | POST | `medico_recuperar` | Generar password temporal por email |
 | POST | `confirmar_consulta` | Confirmar consulta (libera el pago) |
+| POST | `medico_toggle_emergencia` | Activar/desactivar disponibilidad para consultas de emergencia |
 
 ### Panel admin (auth: header `X-Admin-Token`)
 
@@ -321,7 +322,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [ ] **Fase 6E — Historial de pagos** del médico en el portal
 - [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
 - [ ] **Fase 6G — JWT con expiración** para auth admin
-- [ ] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
+- [x] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
 - [x] **Fase 6I — Cron de recordatorios** diarios (8:30 AM via /etc/crontab)
 - [ ] **Fase 6J — Mejoras de UI/UX** y flujo móvil
 

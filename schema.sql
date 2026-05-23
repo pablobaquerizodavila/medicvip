@@ -76,6 +76,7 @@ CREATE TABLE `medicos` (
   `estado` enum('pendiente','activo','suspendido') NOT NULL DEFAULT 'pendiente',
   `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
   `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `disponible_emergencia` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `licencia` (`licencia`)
@@ -93,7 +94,7 @@ CREATE TABLE `pacientes` (
   `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `reservas`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -119,8 +120,9 @@ CREATE TABLE `reservas` (
   `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
   `sala_video` varchar(64) DEFAULT NULL,
   `token_acceso` varchar(32) DEFAULT NULL,
+  `recordatorio_enviado` tinyint(1) DEFAULT 0,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `transacciones`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -135,7 +137,7 @@ CREATE TABLE `transacciones` (
   PRIMARY KEY (`id`),
   KEY `reserva_id` (`reserva_id`),
   CONSTRAINT `transacciones_ibfk_1` FOREIGN KEY (`reserva_id`) REFERENCES `reservas` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;
 /*!50001 DROP VIEW IF EXISTS `v_medicos_activos`*/;

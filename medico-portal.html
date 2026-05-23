@@ -184,6 +184,16 @@
           <div class="toggle-sub">Activa o desactiva tu perfil para recibir pacientes</div>
         </div>
       </div>
+      <div class="estado-toggle" style="border-color:#FECACA;background:#FEF2F2">
+        <label class="toggle-switch">
+          <input type="checkbox" id="emerg-toggle" onchange="toggleEmergencia()">
+          <span class="toggle-slider"></span>
+        </label>
+        <div>
+          <div class="toggle-label" id="emerg-label" style="color:#C0392B">🚨 Disponible para emergencias</div>
+          <div class="toggle-sub">Aparecerás como disponible para consultas inmediatas (tarifa premium)</div>
+        </div>
+      </div>
       <div class="stats-row">
         <div class="stat-card"><div class="stat-label">Reservas</div><div class="stat-val" id="stat-reservas" style="color:var(--green-mid)">—</div></div>
         <div class="stat-card"><div class="stat-label">Tarifa actual</div><div class="stat-val" id="stat-tarifa">—</div></div>
@@ -387,6 +397,12 @@ async function loadDashboard() {
     document.getElementById('estado-toggle').checked = activo;
     document.getElementById('estado-label').textContent = activo ? '✅ Perfil activo — visible para pacientes' : '⏸ Perfil pausado — no recibes nuevas reservas';
     document.getElementById('stat-estado').innerHTML = activo ? '<span style="color:var(--green-mid)">● Activo</span>' : '<span style="color:var(--muted)">● Pausado</span>';
+    const emerg = parseInt(medicoData.disponible_emergencia || 0, 10) === 1;
+    const emergToggle = document.getElementById('emerg-toggle');
+    if (emergToggle) {
+      emergToggle.checked = emerg;
+      document.getElementById('emerg-label').textContent = emerg ? '🚨 Disponible para emergencias AHORA' : '🚨 Disponible para emergencias';
+    }
   } catch(e) {}
 }
 
@@ -400,6 +416,23 @@ async function toggleEstado() {
       document.getElementById('stat-estado').innerHTML = activo ? '<span style="color:var(--green-mid)">● Activo</span>' : '<span style="color:var(--muted)">● Pausado</span>';
     }
   } catch(e) {}
+}
+
+async function toggleEmergencia() {
+  const disponible = document.getElementById('emerg-toggle').checked;
+  try {
+    const res  = await fetch(API + '?action=medico_toggle_emergencia', {method:'POST',headers:authHeaders(),body:JSON.stringify({disponible})});
+    const json = await res.json();
+    if (json.ok) {
+      const on = parseInt(json.data.disponible_emergencia, 10) === 1;
+      document.getElementById('emerg-toggle').checked = on;
+      document.getElementById('emerg-label').textContent = on ? '🚨 Disponible para emergencias AHORA' : '🚨 Disponible para emergencias';
+    } else {
+      document.getElementById('emerg-toggle').checked = !disponible;
+    }
+  } catch(e) {
+    document.getElementById('emerg-toggle').checked = !disponible;
+  }
 }
 
 async function loadPerfil() {

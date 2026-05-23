@@ -83,6 +83,7 @@ try {
         case 'enviar_recordatorios': enviarRecordatorios();   break;
         case 'listar_emergencias':   listarEmergencias();    break;
         case 'reservar_emergencia':  reservarEmergencia();   break;
+        case 'medico_toggle_emergencia': medicoToggleEmergencia(); break;
         default: jsonError('Accion no valida', 400);
     }
 } catch (Throwable $e) {
@@ -447,8 +448,8 @@ function checkMedico(): int {
     return (int)$id;
 }
 function medicoPerfil(): void {
-    $medicoId=checkMedico(); $db=getDB();
-    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
+    $medicoId=checkMedico(); ensureEmergenciaColumn(); $db=getDB();
+    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.disponible_emergencia,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
     $stmt->bind_param('i',$medicoId); $stmt->execute(); $perfil=fetchOne($stmt);
     $stmt2=$db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $stmt2->bind_param('i',$medicoId); $stmt2->execute();
@@ -716,18 +717,44 @@ function emergencyMultiplier(): float {
     return defined('EMERGENCY_RATE_MULTIPLIER') ? (float)EMERGENCY_RATE_MULTIPLIER : 1.5;
 }
 
+function ensureEmergenciaColumn(): void {
+    $db = getDB();
+    $chk = $db->query("SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='medicos' AND COLUMN_NAME='disponible_emergencia'");
+    if ($chk && (int)$chk->fetch_assoc()['c'] === 0)
+        $db->query("ALTER TABLE medicos ADD COLUMN disponible_emergencia TINYINT(1) NOT NULL DEFAULT 0");
+}
+
 function listarEmergencias(): void {
+    ensureEmergenciaColumn();
     $mult = emergencyMultiplier();
     $stmt = query(
         'SELECT m.id, m.titulo, m.nombre, m.apellido, m.foto_perfil, e.especialidad, e.anos_experiencia, p.tarifa, ROUND(p.tarifa * ?, 2) AS tarifa_final
          FROM medicos m
          JOIN medico_especialidad e ON e.medico_id = m.id
          JOIN medico_pago p ON p.medico_id = m.id
-         WHERE m.estado = "activo"
+         WHERE m.estado = "activo" AND m.disponible_emergencia = 1
          ORDER BY m.id DESC',
         'd', [$mult]
     );
     jsonOk(fetchAll($stmt));
+}
+
+function medicoToggleEmergencia(): void {
+    $medicoId = checkMedico();
+    ensureEmergenciaColumn();
+    $data = json_decode(file_get_contents('php://input'), true) ?: [];
+    $db = getDB();
+    if (isset($data['disponible'])) {
+        $nuevo = !empty($data['disponible']) ? 1 : 0;
+    } else {
+        // toggle implícito
+        $row = fetchOne(query('SELECT disponible_emergencia FROM medicos WHERE id=?','i',[$medicoId]));
+        $nuevo = ((int)($row['disponible_emergencia'] ?? 0) === 1) ? 0 : 1;
+    }
+    $stmt = $db->prepare('UPDATE medicos SET disponible_emergencia=? WHERE id=?');
+    $stmt->bind_param('ii', $nuevo, $medicoId);
+    $stmt->execute();
+    jsonOk(['disponible_emergencia' => $nuevo]);
 }
 
 function reservarEmergencia(): void {
