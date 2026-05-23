@@ -152,6 +152,7 @@ define('EMERGENCY_RATE_MULTIPLIER', 1.5);   // tarifa emergencia = tarifa × 1.5
 | `pacientes` | Pacientes únicos por email |
 | `reservas` | Reservas con sala de video Jitsi, token de acceso, estados |
 | `transacciones` | Registro de cobros, comisiones, liberaciones, reembolsos |
+| `resenas` | Calificación 1–5 estrellas + comentario, UNIQUE por reserva |
 
 ### Vistas
 
@@ -184,6 +185,8 @@ Todas las respuestas son JSON con la forma `{ "ok": bool, "data"|"error": ... }`
 | GET | `listar_emergencias` | Listar médicos disponibles ahora (con `tarifa_final` premium) |
 | POST | `reservar_emergencia` | Crear reserva inmediata con horario = ahora |
 | GET | `paciente_sala` | Obtener sala de video por `?token=&email=` |
+| POST | `crear_resena` | Calificar consulta confirmada (`token_acceso` + email + estrellas 1–5) |
+| GET | `listar_resenas_medico` | Reseñas públicas de un médico (`?medico_id=`) + promedio + total |
 
 ### Portal del médico (auth: header `X-Medico-Token`)
 
@@ -198,6 +201,7 @@ Todas las respuestas son JSON con la forma `{ "ok": bool, "data"|"error": ... }`
 | POST | `confirmar_consulta` | Confirmar consulta (libera el pago) |
 | POST | `medico_toggle_emergencia` | Activar/desactivar disponibilidad para consultas de emergencia |
 | GET | `medico_pagos` | Historial de cobros, comisiones y reembolsos + totales agregados |
+| GET | `medico_resenas` | Reseñas recibidas por el médico + promedio + total |
 
 ### Panel admin (auth: header `X-Admin-Token`)
 
@@ -322,7 +326,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [x] **Fase 6C — DKIM** activo (rspamd selector `mail`) + SPF y DMARC ya publicados en GoDaddy
 - [ ] **Fase 6D — Notificaciones WhatsApp** (WhatsApp Cloud API)
 - [x] **Fase 6E — Historial de pagos** del médico en el portal (pestaña "Mis pagos" con totales y tabla)
-- [ ] **Fase 6F — Calificaciones y reseñas** de pacientes
+- [x] **Fase 6F — Calificaciones y reseñas** de pacientes (1–5 estrellas, UNIQUE por reserva, email auto post-confirmación con link)
 - [x] **Fase 6G — JWT con expiración** para auth admin y médico (HS256, 8h)
 - [x] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
 - [x] **Fase 6I — Cron de recordatorios** diarios (8:30 AM via /etc/crontab)

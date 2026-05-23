@@ -85,6 +85,9 @@ try {
         case 'reservar_emergencia':  reservarEmergencia();   break;
         case 'medico_toggle_emergencia': medicoToggleEmergencia(); break;
         case 'medico_pagos':         medicoPagos();           break;
+        case 'crear_resena':         crearResena();           break;
+        case 'listar_resenas_medico': listarResenasMedico();  break;
+        case 'medico_resenas':       medicoResenas();         break;
         default: jsonError('Accion no valida', 400);
     }
 } catch (Throwable $e) {
@@ -139,6 +142,7 @@ function registrarMedico(): void {
 
 // ── LISTAR MÉDICOS ────────────────────────────────────────────────────────────
 function listarMedicos(): void {
+    ensureResenasTable();
     $spec = $_GET['especialidad'] ?? null;
     $stmt = ($spec && $spec!=='Todos')
         ? query('SELECT * FROM v_medicos_activos WHERE especialidad=? ORDER BY id DESC','s',[$spec])
@@ -146,10 +150,15 @@ function listarMedicos(): void {
     $medicos = fetchAll($stmt);
     $db = getDB();
     $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"),hora');
+    $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
         $slots=$sd->get_result()->fetch_all(MYSQLI_ASSOC);
         $m['disponibilidad']=array_map(fn($s)=>$s['dia_semana'].' '.$s['hora'],$slots);
+        $sr->bind_param('i',$m['id']); $sr->execute();
+        $stats=$sr->get_result()->fetch_assoc();
+        $m['total_resenas']     = (int)($stats['total'] ?? 0);
+        $m['estrella_promedio'] = (float)($stats['promedio'] ?? 0);
     }
     jsonOk($medicos);
 }
@@ -583,17 +592,51 @@ function confirmarConsulta(): void {
     $ins2->bind_param('id',$rid,$neto);$ins2->execute();
     // Email al médico — pago liberado
     $medInfo = fetchOne(query('SELECT m.nombre,m.apellido,m.titulo,m.email FROM medicos m WHERE m.id=?','i',[$medicoId]));
-    $pacInfo = fetchOne(query('SELECT p.nombre FROM pacientes p JOIN reservas r ON r.paciente_id=p.id WHERE r.id=?','i',[$rid]));
+    $pacInfo = fetchOne(query('SELECT p.nombre, p.email FROM pacientes p JOIN reservas r ON r.paciente_id=p.id WHERE r.id=?','i',[$rid]));
+    $resInfo = fetchOne(query('SELECT token_acceso FROM reservas WHERE id=?','i',[$rid]));
     if ($medInfo) {
+        $nombreMedicoFull = $medInfo['titulo'].' '.$medInfo['nombre'].' '.$medInfo['apellido'];
         emailPagoLiberado([
-            'medico_nombre' => $medInfo['titulo'].' '.$medInfo['nombre'].' '.$medInfo['apellido'],
+            'medico_nombre' => $nombreMedicoFull,
             'email_medico'  => $medInfo['email'],
             'paciente'      => $pacInfo['nombre'] ?? 'Paciente',
             'monto_medico'  => number_format($neto, 2),
             'confirmada_en' => $ahora,
         ]);
+        // Email al paciente con link para calificar
+        if ($pacInfo && !empty($pacInfo['email']) && $resInfo && !empty($resInfo['token_acceso'])) {
+            emailPedirResena([
+                'paciente'       => $pacInfo['nombre'] ?? 'Paciente',
+                'email_paciente' => $pacInfo['email'],
+                'medico'         => $nombreMedicoFull,
+                'reserva_id'     => $rid,
+                'token_acceso'   => $resInfo['token_acceso'],
+            ]);
+        }
     }
     jsonOk(['mensaje'=>'Consulta confirmada. Pago liberado.','monto_recibido'=>'$'.number_format($neto,2),'confirmada_en'=>$ahora]);
+}
+
+function emailPedirResena(array $data): void {
+    $link = SITE_URL . '/pacientes.html?calificar=' . urlencode($data['token_acceso']) . '&email=' . urlencode($data['email_paciente']);
+    $html = <<<HTML
+<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f5f5f5;padding:20px">
+<div style="max-width:560px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+  <div style="background:#0D7A5F;padding:28px 32px;text-align:center">
+    <h1 style="color:#fff;margin:0;font-size:22px">MedicVIP</h1>
+    <p style="color:rgba(255,255,255,.85);margin:6px 0 0;font-size:14px">¿Cómo fue tu consulta?</p>
+  </div>
+  <div style="padding:32px;text-align:center">
+    <h2 style="color:#1A1A18;font-size:18px;margin:0 0 8px">Califica tu consulta con {$data['medico']}</h2>
+    <p style="color:#666;font-size:14px;margin:0 0 24px">Tu opinión ayuda a otros pacientes a elegir mejor. Toma menos de 30 segundos.</p>
+    <div style="font-size:36px;letter-spacing:8px;margin:24px 0;color:#F5C842">☆ ☆ ☆ ☆ ☆</div>
+    <a href="$link" style="display:inline-block;background:#0D7A5F;color:#fff;padding:14px 32px;border-radius:100px;text-decoration:none;font-size:14px;font-weight:600">Dejar mi reseña →</a>
+    <p style="margin:24px 0 0;font-size:11px;color:#aaa">Reserva #{$data['reserva_id']}</p>
+  </div>
+  <div style="background:#f5f5f5;padding:16px 32px;text-align:center;font-size:11px;color:#aaa">MedicVIP · © 2026</div>
+</div></body></html>
+HTML;
+    enviarEmail($data['email_paciente'], $data['paciente'], '⭐ Califica tu consulta — MedicVIP', $html);
 }
 
 // ── REEMBOLSOS ────────────────────────────────────────────────────────────────
@@ -926,6 +969,103 @@ function reservarEmergencia(): void {
         'monto_total'  => $total,
         'mensaje'      => 'Reserva de emergencia creada. Conectándote al médico ahora.',
     ]);
+}
+
+// ── RESEÑAS ──────────────────────────────────────────────────────────────────
+function ensureResenasTable(): void {
+    $db = getDB();
+    $chk = $db->query("SELECT COUNT(*) AS c FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='resenas'");
+    if ($chk && (int)$chk->fetch_assoc()['c'] === 0) {
+        $db->query("CREATE TABLE resenas (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            reserva_id INT UNSIGNED NOT NULL UNIQUE,
+            medico_id INT UNSIGNED NOT NULL,
+            paciente_id INT UNSIGNED NOT NULL,
+            estrellas TINYINT UNSIGNED NOT NULL,
+            comentario TEXT,
+            creado_en DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_medico (medico_id),
+            CONSTRAINT chk_estrellas CHECK (estrellas BETWEEN 1 AND 5)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+}
+
+function crearResena(): void {
+    ensureResenasTable();
+    $data  = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    $token = trim($data['token_acceso'] ?? '');
+    $email = strtolower(trim($data['email'] ?? ''));
+    $stars = (int)($data['estrellas'] ?? 0);
+    $comentario = trim((string)($data['comentario'] ?? ''));
+    if (!$token || !$email)              throw new Exception('Faltan token_acceso y email.');
+    if ($stars < 1 || $stars > 5)        throw new Exception('Estrellas debe ser 1–5.');
+    if (mb_strlen($comentario) > 2000)   throw new Exception('Comentario máximo 2000 caracteres.');
+
+    $reserva = fetchOne(query(
+        'SELECT r.id AS reserva_id, r.medico_id, r.paciente_id, r.estado_consulta
+         FROM reservas r
+         JOIN pacientes p ON p.id = r.paciente_id
+         WHERE r.token_acceso = ? AND LOWER(p.email) = ?',
+        'ss', [$token, $email]
+    ));
+    if (!$reserva)                                  throw new Exception('Reserva no encontrada o email no coincide.');
+    if ($reserva['estado_consulta'] !== 'confirmada') throw new Exception('Solo puedes calificar consultas confirmadas.');
+
+    $db = getDB();
+    $stmt = $db->prepare('INSERT INTO resenas (reserva_id, medico_id, paciente_id, estrellas, comentario) VALUES (?, ?, ?, ?, ?)');
+    $stmt->bind_param('iiiis', $reserva['reserva_id'], $reserva['medico_id'], $reserva['paciente_id'], $stars, $comentario);
+    if (!$stmt->execute()) {
+        if ($stmt->errno === 1062 || $db->errno === 1062)
+            throw new Exception('Esta consulta ya fue calificada.');
+        throw new Exception('Error guardando reseña: ' . $stmt->error);
+    }
+    jsonOk(['resena_id' => (int)$db->insert_id, 'estrellas' => $stars]);
+}
+
+function listarResenasMedico(): void {
+    ensureResenasTable();
+    $medicoId = (int)($_GET['medico_id'] ?? 0);
+    if (!$medicoId) throw new Exception('Falta medico_id.');
+    $stmt = query(
+        'SELECT r.id, r.estrellas, r.comentario, r.creado_en, p.nombre AS paciente
+         FROM resenas r
+         JOIN pacientes p ON p.id = r.paciente_id
+         WHERE r.medico_id = ?
+         ORDER BY r.creado_en DESC',
+        'i', [$medicoId]
+    );
+    $resenas = fetchAll($stmt);
+    $promedio = 0.0; $count = count($resenas);
+    if ($count > 0) {
+        $sum = array_sum(array_map(fn($r) => (int)$r['estrellas'], $resenas));
+        $promedio = round($sum / $count, 2);
+    }
+    // Mostrar solo primer nombre del paciente para privacidad
+    foreach ($resenas as &$r) {
+        $r['paciente'] = strtok($r['paciente'] ?? '', ' ');
+    }
+    jsonOk(['medico_id' => $medicoId, 'total' => $count, 'estrella_promedio' => $promedio, 'resenas' => $resenas]);
+}
+
+function medicoResenas(): void {
+    $medicoId = checkMedico();
+    ensureResenasTable();
+    $stmt = query(
+        'SELECT r.id, r.estrellas, r.comentario, r.creado_en, p.nombre AS paciente, res.horario
+         FROM resenas r
+         JOIN pacientes p ON p.id = r.paciente_id
+         JOIN reservas res ON res.id = r.reserva_id
+         WHERE r.medico_id = ?
+         ORDER BY r.creado_en DESC',
+        'i', [$medicoId]
+    );
+    $resenas = fetchAll($stmt);
+    $promedio = 0.0; $count = count($resenas);
+    if ($count > 0) {
+        $sum = array_sum(array_map(fn($r) => (int)$r['estrellas'], $resenas));
+        $promedio = round($sum / $count, 2);
+    }
+    jsonOk(['total' => $count, 'estrella_promedio' => $promedio, 'resenas' => $resenas]);
 }
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────

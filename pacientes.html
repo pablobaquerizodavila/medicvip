@@ -334,7 +334,8 @@ async function loadDoctors() {
         name:     (m.nombre_completo || '').trim(),
         spec:     m.especialidad || '',
         exp:      m.anos_experiencia || '',
-        rating:   0, reviews: 0,
+        rating:   parseFloat(m.estrella_promedio) || 0,
+        reviews:  parseInt(m.total_resenas, 10) || 0,
         fee:      parseFloat(m.tarifa) || 0,
         city:     m.ciudad || '',
         av:       AV_COLORS[i % AV_COLORS.length],
@@ -425,6 +426,7 @@ function renderDoctors(list) {
           <span class="dc-name">${d.name}</span>
           ${d.verified ? '<span class="dc-verified">✓ Verificado</span>' : '<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:500;background:#F1EFEB;color:var(--muted)">⏳ Pendiente de verificación</span>'}
         </div>
+        ${d.reviews > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin:4px 0 6px;cursor:pointer" onclick="verResenas(${d.id},'${d.name.replace(/'/g,"&#39;")}')"><span style="color:#F5C842;font-size:14px">${'★'.repeat(Math.round(d.rating))}${'☆'.repeat(5-Math.round(d.rating))}</span><span style="font-size:13px;color:var(--ink);font-weight:500">${d.rating.toFixed(1)}</span><span style="font-size:12px;color:var(--muted);text-decoration:underline">(${d.reviews} ${d.reviews===1?'reseña':'reseñas'})</span></div>` : '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">Sin reseñas aún</div>'}
         <div style="margin-bottom:6px">
           <div style="font-size:14px;font-weight:500;color:var(--ink)">${d.spec}${d.subespec ? ' · <span style="font-weight:400">'+d.subespec+'</span>' : ''}</div>
           ${d.universidad ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">🎓 ${d.universidad}</div>` : ''}
@@ -889,6 +891,109 @@ async function confirmarEmergencia(medicoId, tarifa) {
     if(btn){btn.disabled=false;btn.textContent='🚨 Confirmar y conectar ahora';}
   }
 }
+
+// ── RESEÑAS ──────────────────────────────────────────────────────────────────
+async function verResenas(docId, docName) {
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header"><h2>Reseñas de ${docName}</h2><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <div id="resenas-list" style="padding:8px 0"><div style="text-align:center;color:var(--muted);padding:24px">Cargando...</div></div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+  try {
+    const res  = await fetch(API + '?action=listar_resenas_medico&medico_id=' + docId);
+    const json = await res.json();
+    const cont = document.getElementById('resenas-list');
+    if (!json.ok || !json.data.resenas.length) {
+      cont.innerHTML = '<div style="text-align:center;color:var(--muted);padding:24px">Este médico aún no tiene reseñas.</div>';
+      return;
+    }
+    const { total, estrella_promedio, resenas } = json.data;
+    cont.innerHTML = `
+      <div style="text-align:center;padding:8px 0 16px;border-bottom:1px solid #eee;margin-bottom:16px">
+        <div style="font-size:32px;font-weight:700;color:var(--ink)">${Number(estrella_promedio).toFixed(1)}</div>
+        <div style="color:#F5C842;font-size:18px;letter-spacing:2px">${'★'.repeat(Math.round(estrella_promedio))}${'☆'.repeat(5-Math.round(estrella_promedio))}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${total} ${total===1?'reseña':'reseñas'}</div>
+      </div>
+      ${resenas.map(r => `
+        <div style="padding:14px 0;border-bottom:1px solid #f0f0f0">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+            <div style="font-weight:500;font-size:14px">${r.paciente || 'Paciente'}</div>
+            <div style="color:#F5C842;font-size:13px">${'★'.repeat(r.estrellas)}${'☆'.repeat(5-r.estrellas)}</div>
+            <div style="margin-left:auto;font-size:11px;color:var(--muted)">${r.creado_en?.split(' ')[0] || ''}</div>
+          </div>
+          ${r.comentario ? `<p style="font-size:13px;color:var(--ink);line-height:1.5;margin:0">${r.comentario}</p>` : ''}
+        </div>`).join('')}`;
+  } catch(e) {
+    document.getElementById('resenas-list').innerHTML = '<div style="text-align:center;color:#C0392B;padding:24px">Error al cargar las reseñas.</div>';
+  }
+}
+
+let calificarToken = '', calificarEmail = '', calificarEstrellas = 0;
+function abrirCalificar(token, email) {
+  calificarToken = token; calificarEmail = email; calificarEstrellas = 0;
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header"><h2>Califica tu consulta</h2><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <p style="color:var(--muted);font-size:14px;margin:0 0 20px">Tu opinión ayuda a otros pacientes a elegir mejor.</p>
+    <div style="text-align:center;margin:8px 0 20px">
+      <div id="estrellas-pick" style="font-size:42px;letter-spacing:8px;cursor:pointer;color:#ddd;user-select:none">
+        ${[1,2,3,4,5].map(n=>`<span data-star="${n}" onclick="setStars(${n})">☆</span>`).join('')}
+      </div>
+      <div id="stars-label" style="font-size:13px;color:var(--muted);margin-top:8px">Toca una estrella</div>
+    </div>
+    <div class="form-group" style="margin-bottom:16px">
+      <label>Comentario (opcional)</label>
+      <textarea id="cal-comentario" rows="3" placeholder="¿Cómo fue la atención?" style="resize:none" maxlength="2000"></textarea>
+    </div>
+    <button class="confirm-btn" id="cal-submit" onclick="enviarResena()">Enviar reseña</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function setStars(n) {
+  calificarEstrellas = n;
+  const labels = ['', 'Muy mala', 'Mala', 'Regular', 'Buena', 'Excelente'];
+  document.querySelectorAll('#estrellas-pick span').forEach((s, i) => {
+    s.textContent = (i < n) ? '★' : '☆';
+    s.style.color = (i < n) ? '#F5C842' : '#ddd';
+  });
+  document.getElementById('stars-label').textContent = labels[n];
+}
+
+async function enviarResena() {
+  if (!calificarEstrellas) { alert('Por favor selecciona una calificación'); return; }
+  const btn = document.getElementById('cal-submit');
+  btn.disabled = true; btn.textContent = 'Enviando...';
+  try {
+    const res  = await fetch(API + '?action=crear_resena', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        token_acceso: calificarToken,
+        email:        calificarEmail,
+        estrellas:    calificarEstrellas,
+        comentario:   document.getElementById('cal-comentario').value.trim(),
+      }),
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); btn.disabled = false; btn.textContent = 'Enviar reseña'; return; }
+    document.getElementById('modal-content').innerHTML = `
+      <div class="success-modal">
+        <div class="success-circle">⭐</div>
+        <h2>¡Gracias por tu reseña!</h2>
+        <p>Tu calificación de ${calificarEstrellas} ${calificarEstrellas===1?'estrella':'estrellas'} ya está publicada.</p>
+        <button class="confirm-btn" onclick="closeModal()">Cerrar</button>
+      </div>`;
+    // refresh listado si está visible
+    if (typeof loadDoctors === 'function') loadDoctors();
+  } catch(e) {
+    alert('Error de conexión');
+    btn.disabled = false; btn.textContent = 'Enviar reseña';
+  }
+}
+
+// Auto-abrir modal calificar si la URL trae ?calificar=TOKEN&email=...
+(function(){
+  const p = new URLSearchParams(window.location.search);
+  const tk = p.get('calificar'), em = p.get('email');
+  if (tk && em) setTimeout(() => abrirCalificar(tk, em), 300);
+})();
 
 </script>
 

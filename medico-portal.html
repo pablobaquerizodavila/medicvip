@@ -161,6 +161,7 @@
       <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
       <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Mis reservas</div>
       <div class="nav-item" onclick="showSection('pagos',this); loadPagos()"><span class="nav-icon">💰</span> Mis pagos</div>
+      <div class="nav-item" onclick="showSection('resenas',this); loadMedicoResenas()"><span class="nav-icon">⭐</span> Mis reseñas</div>
       <div class="nav-item" onclick="showSection('seguridad',this)"><span class="nav-icon">🔒</span> Seguridad</div>
     </nav>
     <div class="sidebar-footer">
@@ -291,6 +292,16 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="section" id="section-resenas">
+      <div class="page-title">Mis reseñas</div>
+      <p class="page-sub">Lo que tus pacientes opinan después de la consulta</p>
+      <div class="stats-row" style="grid-template-columns:1fr 1fr">
+        <div class="stat-card"><div class="stat-label">Promedio</div><div class="stat-val" id="rev-avg" style="color:#F5C842">—</div><div style="color:#F5C842;font-size:14px;letter-spacing:2px" id="rev-stars">☆☆☆☆☆</div></div>
+        <div class="stat-card"><div class="stat-label">Total</div><div class="stat-val" id="rev-count" style="color:var(--ink)">—</div><div style="font-size:11px;color:var(--muted)">reseñas recibidas</div></div>
+      </div>
+      <div id="resenas-list-medico"><div class="loading">Cargando...</div></div>
     </div>
 
     <div class="section" id="section-seguridad">
@@ -447,6 +458,34 @@ async function toggleEstado() {
       document.getElementById('stat-estado').innerHTML = activo ? '<span style="color:var(--green-mid)">● Activo</span>' : '<span style="color:var(--muted)">● Pausado</span>';
     }
   } catch(e) {}
+}
+
+async function loadMedicoResenas() {
+  const cont = document.getElementById('resenas-list-medico');
+  cont.innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const res  = await fetch(API + '?action=medico_resenas', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) { cont.innerHTML = '<div class="card" style="text-align:center;color:#C0392B">Error: '+json.error+'</div>'; return; }
+    const { total, estrella_promedio, resenas } = json.data;
+    document.getElementById('rev-avg').textContent   = total ? Number(estrella_promedio).toFixed(1) : '—';
+    document.getElementById('rev-count').textContent = total;
+    const r = Math.round(estrella_promedio);
+    document.getElementById('rev-stars').textContent = '★'.repeat(r) + '☆'.repeat(5-r);
+    if (!total) { cont.innerHTML = '<div class="card" style="text-align:center;color:var(--muted);padding:32px">Aún no tienes reseñas. Tus pacientes recibirán un email para calificarte después de cada consulta confirmada.</div>'; return; }
+    cont.innerHTML = '<div class="card" style="padding:0">' + resenas.map(rv => `
+      <div style="padding:16px;border-bottom:1px solid #f0f0f0">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+          <div style="font-weight:500;font-size:14px">${rv.paciente || 'Paciente'}</div>
+          <div style="color:#F5C842;font-size:14px">${'★'.repeat(rv.estrellas)}${'☆'.repeat(5-rv.estrellas)}</div>
+          <div style="margin-left:auto;font-size:11px;color:var(--muted)">${rv.creado_en?.split(' ')[0] || ''}</div>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Consulta: ${rv.horario || '—'}</div>
+        ${rv.comentario ? `<p style="font-size:13px;color:var(--ink);line-height:1.5;margin:0">${rv.comentario}</p>` : '<p style="font-size:12px;color:var(--muted);font-style:italic;margin:0">Sin comentario</p>'}
+      </div>`).join('') + '</div>';
+  } catch(e) {
+    cont.innerHTML = '<div class="card" style="text-align:center;color:#C0392B">Error de conexión</div>';
+  }
 }
 
 async function loadPagos() {
