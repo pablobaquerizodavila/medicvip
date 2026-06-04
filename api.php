@@ -243,54 +243,57 @@ function crearReserva(): void {
 
 // ── EMAIL ─────────────────────────────────────────────────────────────────────
 function enviarEmail(string $to, string $toName, string $subject, string $htmlBody): bool {
-    // Conexión SMTP directa a MailPlus local (sin librería externa)
-    $sock = @fsockopen(MAIL_HOST, MAIL_PORT, $errno, $errstr, 5);
-    if (!$sock) return false;
+    // SMTP autenticado a mailcow: 587 STARTTLS + AUTH LOGIN
+    $ctx = stream_context_create(['ssl' => [
+        'peer_name'        => 'mail.eneural.org',
+        'verify_peer'      => true,
+        'verify_peer_name' => true,
+    ]]);
+    $sock = @stream_socket_client('tcp://' . MAIL_HOST . ':' . MAIL_PORT, $errno, $errstr, 10, STREAM_CLIENT_CONNECT, $ctx);
+    if (!$sock) { error_log("medicvip mail: conexion fallo $errstr ($errno)"); return false; }
+    stream_set_timeout($sock, 15);
 
-    $from     = MAIL_FROM;
-    $fromName = MAIL_NAME;
-    $boundary = md5(uniqid());
+    $read = function () use ($sock) {
+        $data = '';
+        while (($line = fgets($sock, 1024)) !== false) {
+            $data .= $line;
+            if (strlen($line) >= 4 && $line[3] === ' ') break;
+        }
+        return $data;
+    };
+    $cmd = function ($c) use ($sock, $read) { fwrite($sock, $c . "\r\n"); return $read(); };
+    $ok  = function ($resp, $code) { return strpos($resp, $code) === 0; };
 
-    // Leer saludo del servidor
-    fgets($sock, 1024);
+    $read(); // saludo 220
+    $cmd('EHLO medicvip.org');
+    $r = $cmd('STARTTLS');
+    if (!$ok($r, '220')) { error_log("medicvip mail: STARTTLS rechazado: $r"); fclose($sock); return false; }
+    if (!stream_socket_enable_crypto($sock, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) { error_log('medicvip mail: TLS handshake fallo'); fclose($sock); return false; }
+    $cmd('EHLO medicvip.org');
+    $cmd('AUTH LOGIN');
+    $cmd(base64_encode(MAIL_USER));
+    $r = $cmd(base64_encode(MAIL_PASS));
+    if (!$ok($r, '235')) { error_log("medicvip mail: AUTH fallo: $r"); fclose($sock); return false; }
 
-    $cmds = [
-        "EHLO medicvip.org
-",
-        "MAIL FROM:<$from>
-",
-        "RCPT TO:<$to>
-",
-        "DATA
-",
-    ];
-    foreach ($cmds as $cmd) { fwrite($sock, $cmd); fgets($sock, 1024); }
+    $from = MAIL_FROM; $fromName = MAIL_NAME;
+    $cmd("MAIL FROM:<$from>");
+    $cmd("RCPT TO:<$to>");
+    $r = $cmd('DATA');
+    if (!$ok($r, '354')) { error_log("medicvip mail: DATA rechazado: $r"); fclose($sock); return false; }
 
-    // Headers + body
-    $msg  = "From: $fromName <$from>
-";
-    $msg .= "To: $toName <$to>
-";
-    $msg .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=
-";
-    $msg .= "MIME-Version: 1.0
-";
-    $msg .= "Content-Type: text/html; charset=UTF-8
-";
-    $msg .= "Content-Transfer-Encoding: base64
-";
-    $msg .= "
-";
-    $msg .= chunk_split(base64_encode($htmlBody)) . "
-";
-    $msg .= ".
-";
-    fwrite($sock, $msg);
-    fgets($sock, 1024);
-    fwrite($sock, "QUIT
-");
+    $msg  = "From: $fromName <$from>\r\n";
+    $msg .= "To: $toName <$to>\r\n";
+    $msg .= "Subject: =?UTF-8?B?" . base64_encode($subject) . "?=\r\n";
+    $msg .= "MIME-Version: 1.0\r\n";
+    $msg .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $msg .= "Content-Transfer-Encoding: base64\r\n";
+    $msg .= "\r\n";
+    $msg .= chunk_split(base64_encode($htmlBody));
+    fwrite($sock, $msg . "\r\n.\r\n");
+    $r = $read();
+    $cmd('QUIT');
     fclose($sock);
-    return true;
+    return $ok($r, '250');
 }
 
 function emailReservaConfirmada(array $data): void {

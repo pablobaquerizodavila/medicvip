@@ -38,7 +38,7 @@ Plataforma de telemedicina para agendar y gestionar consultas médicas online, c
 - **Reembolsos automáticos** vía cron job si el médico no confirma en 24h (2h para emergencias)
 - **Recordatorios** automáticos el día de la consulta al paciente y al médico
 - **Salas de video Jitsi** generadas únicas por reserva, con token de acceso para el paciente
-- **Notificaciones por email** desde SMTP local MailPlus (Synology)
+- **Notificaciones por email** vía mailcow (SMTP autenticado, puerto 587 STARTTLS + AUTH LOGIN)
 - **Comisión configurable** (default 15% para la plataforma)
 
 ---
@@ -70,7 +70,7 @@ medicvip/
 - MariaDB 10.3+ / MySQL 5.7+
 - Servidor web: DSM Web Station (Synology) con servicio `nginx_php`, o Nginx/Apache externo
 - Acceso a cron jobs (DSM Programador de tareas o `/etc/crontab` en Linux)
-- SMTP local o remoto para emails (en producción se usa MailPlus de Synology vía `fsockopen` 127.0.0.1:25)
+- SMTP autenticado para emails (en producción se usa **mailcow** vía `stream_socket_client` al puerto 587 con STARTTLS + AUTH LOGIN; antes MailPlus local vía `fsockopen` 127.0.0.1:25)
 
 ---
 

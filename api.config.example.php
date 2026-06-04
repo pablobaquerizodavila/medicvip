@@ -38,9 +38,15 @@ define('CRON_KEY', 'TU_CLAVE_SECRETA_CRON');
 define('JWT_SECRET', 'GENERAR_64_HEX_CHARS_O_MAS');
 define('JWT_EXP_SECONDS', 28800); // 8h por defecto
 
-// ── Email (Synology MailPlus local) ──────────────────────────────────────────
-define('MAIL_HOST',  '127.0.0.1');
-define('MAIL_PORT',  25);
+// ── Email (mailcow SMTP autenticado — STARTTLS + AUTH LOGIN) ─────────────────
+// Migrado de MailPlus local (fsockopen 127.0.0.1:25) a mailcow.
+// El envío usa STARTTLS en el puerto 587 y se autentica con MAIL_USER/MAIL_PASS.
+// El certificado TLS se valida contra peer_name 'mail.eneural.org' (hardcodeado
+// en enviarEmail() dentro de api.php).
+define('MAIL_HOST',  'TU_HOST_MAILCOW');        // host SMTP de mailcow (IP o FQDN)
+define('MAIL_PORT',  587);                       // submission + STARTTLS
+define('MAIL_USER',  'noreply@medicvip.org');    // buzón autenticado en mailcow
+define('MAIL_PASS',  'TU_PASSWORD_MAILCOW');     // password del buzón (NUNCA versionar)
 define('MAIL_FROM',  'noreply@medicvip.org');
 define('MAIL_NAME',  'MedicVIP');
 
