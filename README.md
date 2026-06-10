@@ -272,6 +272,14 @@ A diferencia del flujo normal (paciente escoge horario futuro), una emergencia c
 
 Llama a `api.php?action=procesar_reembolsos&cron_key=…` con el header `Host: medicvip.org` (necesario porque nginx hace virtual hosting).
 
+### Backup diario de la base de datos (2:30 AM)
+
+```cron
+30 2  *  *  *  root  /volume2/web/db-backups/backup_dbs.sh > /dev/null 2>&1
+```
+
+El script ([ops/backup_dbs.sh](ops/backup_dbs.sh)) dumpea `mediconline` y `siscormed` con `mariadb-dump --single-transaction`, comprime con gzip y rota a 14 días. Vive en `/volume2/web/db-backups/` (chmod 700, owner root — nginx no puede servirlo) dentro del share `web`, que tiene snapshots cada 3 horas → cada dump queda doblemente protegido. Motivación: el rebuild del NAS de mayo 2026 se llevó la BD entera porque los snapshots del share no cubren el datadir de MariaDB.
+
 ### Recordatorios diarios (8:30 AM)
 
 ```cron
