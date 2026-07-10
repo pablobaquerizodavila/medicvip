@@ -81,13 +81,28 @@
   .eye-btn { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 4px; color: var(--muted); display: flex; align-items: center; transition: color .2s; }
   .eye-btn:hover { color: var(--ink); }
 
-  /* PHOTO UPLOAD */
-  .photo-upload { border: 2px dashed var(--border); border-radius: var(--radius); padding: 28px; text-align: center; cursor: pointer; transition: all .2s; position: relative; }
+  /* PHOTO UPLOAD — estado 1 */
+  .photo-upload { border: 2px dashed var(--border); border-radius: var(--radius); text-align: center; cursor: pointer; transition: all .2s; }
   .photo-upload:hover { border-color: var(--green-mid); background: var(--green-light); }
-  .photo-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .photo-upload-icon { font-size: 32px; margin-bottom: 8px; }
-  .photo-upload p { font-size: 13px; color: var(--muted); }
-  .photo-upload strong { font-size: 14px; display: block; margin-bottom: 4px; }
+  .photo-upload p { font-size: 13px; color: var(--muted); margin: 0; }
+
+  /* PHOTO CROP — estado 2: overlay circular */
+  #photo-crop-area::before {
+    content: '';
+    position: absolute;
+    width: 110px; height: 110px;
+    top: 50%; left: 50%; transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border: 2px dashed rgba(255,255,255,.85);
+    pointer-events: none; z-index: 2;
+  }
+  #photo-crop-area::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(circle 55px at center, transparent 55px, rgba(0,0,0,.45) 55px);
+    pointer-events: none; z-index: 1;
+  }
 
   /* SCHEDULE */
   .schedule-day { border: 1.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 10px; }
@@ -210,14 +225,71 @@
     </div>
 
     <div style="display:flex;gap:20px;align-items:flex-start;margin-bottom:24px">
-      <input type="file" accept="image/*" id="photo-input" style="display:none" onchange="previewPhoto(this)">
-      <div class="photo-upload" id="photo-widget" style="width:130px;min-width:130px;height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;overflow:hidden" onclick="document.getElementById('photo-input').click()">
-        <div id="photo-placeholder" style="display:flex;flex-direction:column;align-items:center;pointer-events:none">
-          <div class="photo-upload-icon">📷</div>
+      <!-- file input oculto — sin onchange, gestionado por JS -->
+      <input type="file" accept="image/*" id="photo-input" style="display:none">
+
+      <!-- Wrapper — mantiene el ancho 130px en el flex layout -->
+      <div id="photo-widget-outer" style="width:130px;min-width:130px;flex-shrink:0">
+
+        <!-- ESTADO 1: placeholder (visible por defecto) -->
+        <div id="photo-placeholder"
+             class="photo-upload"
+             role="button"
+             tabindex="0"
+             aria-label="Seleccionar foto de perfil"
+             onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('photo-input').click()"
+             style="width:130px;height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;cursor:pointer"
+             onclick="document.getElementById('photo-input').click()">
+          <div class="photo-upload-icon" aria-hidden="true">📷</div>
           <p style="font-size:11px;margin-top:4px">Foto de perfil</p>
         </div>
-        <img id="photo-preview" style="display:none;width:100%;height:100%;object-fit:cover;position:absolute;top:0;left:0;border-radius:inherit;pointer-events:none">
-      </div>
+
+        <!-- ESTADO 2: crop (oculto por defecto) -->
+        <div id="photo-crop-container" style="display:none">
+          <div id="photo-crop-area"
+               style="width:130px;height:130px;border-radius:12px;overflow:hidden;position:relative;cursor:move;user-select:none;touch-action:none;background:#dee2e6">
+            <img id="crop-img" style="position:absolute;transform-origin:0 0;will-change:transform;pointer-events:none">
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            <span style="font-size:12px;color:#adb5bd">🔍</span>
+            <input type="range" id="zoom-slider" min="1" max="3" step="0.01" value="1"
+                   aria-label="Zoom de la foto"
+                   style="flex:1;accent-color:#1d9e75;cursor:pointer">
+            <span style="font-size:11px;color:#adb5bd">+</span>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button type="button" id="crop-change-btn"
+                    style="flex:1;background:#f8f9fa;border:1px solid #dee2e6;font-size:11px;padding:6px 0;border-radius:6px;cursor:pointer;color:#6c757d">
+              ↩ Cambiar
+            </button>
+            <button type="button" id="crop-confirm-btn"
+                    style="flex:1;background:#1d9e75;border:none;color:#fff;font-size:11px;padding:6px 0;border-radius:6px;cursor:pointer">
+              ✓ Listo
+            </button>
+          </div>
+        </div>
+
+        <!-- ESTADO 3: resultado (oculto por defecto) -->
+        <div id="photo-result" style="display:none;text-align:center">
+          <div style="position:relative;display:inline-block">
+            <img id="photo-preview"
+                 style="width:130px;height:130px;border-radius:50%;object-fit:cover;border:3px solid #1d9e75;display:block">
+            <div style="position:absolute;bottom:4px;right:4px;width:22px;height:22px;border-radius:50%;background:#1d9e75;border:2px solid #fff;display:flex;align-items:center;justify-content:center">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="white"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            </div>
+          </div>
+          <div style="margin-top:6px">
+            <button type="button" id="crop-reset-btn"
+                    style="background:none;border:none;color:#1d9e75;font-size:11px;cursor:pointer;text-decoration:underline">
+              Cambiar foto
+            </button>
+          </div>
+        </div>
+
+      </div><!-- /photo-widget-outer -->
+
+      <!-- Canvas oculto para exportar el recorte -->
+      <canvas id="crop-canvas" style="display:none" width="400" height="400"></canvas>
       <div style="flex:1">
         <div class="form-grid">
           <div class="form-group">
@@ -747,19 +819,163 @@ function togglePassword() {
 }
 
 
-function previewPhoto(input) {
-  if(input.files && input.files[0]) {
+// ── PHOTO CROP ────────────────────────────────────────────────────────────────
+(function () {
+  const CIRCLE_R = 55;    // radio px del círculo de recorte (diámetro = 110px)
+  const WIDGET   = 130;   // tamaño del widget en px
+  const OUT_SIZE = 400;   // tamaño de salida del canvas en px
+
+  let scale    = 1;
+  let offsetX  = 0;       // desplazamiento de la imagen desde el centro del widget
+  let offsetY  = 0;
+  let natW     = 0;       // dimensiones naturales de la imagen
+  let natH     = 0;
+  let baseScale = 1;      // scale mínima para cubrir el círculo
+
+  const fileInput = document.getElementById('photo-input');
+  const pholder   = document.getElementById('photo-placeholder');
+  const cropCont  = document.getElementById('photo-crop-container');
+  const cropArea  = document.getElementById('photo-crop-area');
+  const cropImg   = document.getElementById('crop-img');
+  const zSlider   = document.getElementById('zoom-slider');
+  const resultDiv = document.getElementById('photo-result');
+  const preview   = document.getElementById('photo-preview');
+  const canvas    = document.getElementById('crop-canvas');
+  const ctx       = canvas.getContext('2d');
+
+  // ── Estado ──────────────────────────────────────────────────────────────────
+  function showState(n) {
+    pholder.style.display  = n === 1 ? '' : 'none';
+    cropCont.style.display = n === 2 ? '' : 'none';
+    resultDiv.style.display = n === 3 ? '' : 'none';
+  }
+
+  // ── Cargar imagen ────────────────────────────────────────────────────────────
+  fileInput.addEventListener('change', function () {
+    if (!this.files || !this.files[0]) return;
     const reader = new FileReader();
     reader.onload = e => {
-      const preview = document.getElementById('photo-preview');
-      const placeholder = document.getElementById('photo-placeholder');
-      preview.src = e.target.result;
-      preview.style.display = 'block';
-      placeholder.style.display = 'none';
+      cropImg.onload = () => {
+        natW = cropImg.naturalWidth;
+        natH = cropImg.naturalHeight;
+        baseScale = (CIRCLE_R * 2) / Math.min(natW, natH);
+        scale = baseScale;
+        offsetX = 0;
+        offsetY = 0;
+        zSlider.min   = baseScale.toFixed(4);
+        zSlider.max   = (baseScale * 3).toFixed(4);
+        zSlider.value = baseScale.toFixed(4);
+        applyTransform();
+        showState(2);
+      };
+      cropImg.onerror = () => showState(1);
+      cropImg.src = e.target.result;
     };
-    reader.readAsDataURL(input.files[0]);
+    reader.readAsDataURL(this.files[0]);
+  });
+
+  // ── Transform ────────────────────────────────────────────────────────────────
+  function applyTransform() {
+    const tx = WIDGET / 2 + offsetX - (natW * scale) / 2;
+    const ty = WIDGET / 2 + offsetY - (natH * scale) / 2;
+    cropImg.style.width  = natW + 'px';
+    cropImg.style.height = natH + 'px';
+    cropImg.style.transform = `translate(${tx}px, ${ty}px) scale(${scale})`;
+    cropImg.style.transformOrigin = '0 0';
   }
-}
+
+  function clampOffset() {
+    const maxX = Math.max(0, (natW * scale) / 2 - CIRCLE_R);
+    const maxY = Math.max(0, (natH * scale) / 2 - CIRCLE_R);
+    offsetX = Math.max(-maxX, Math.min(maxX, offsetX));
+    offsetY = Math.max(-maxY, Math.min(maxY, offsetY));
+  }
+
+  // ── Zoom slider ──────────────────────────────────────────────────────────────
+  zSlider.addEventListener('input', function () {
+    scale = parseFloat(this.value);
+    clampOffset();
+    applyTransform();
+  });
+
+  // ── Drag (mouse) ─────────────────────────────────────────────────────────────
+  let drag = false, sx = 0, sy = 0, sox = 0, soy = 0;
+
+  cropArea.addEventListener('mousedown', e => {
+    drag = true; sx = e.clientX; sy = e.clientY; sox = offsetX; soy = offsetY;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!drag) return;
+    offsetX = sox + (e.clientX - sx);
+    offsetY = soy + (e.clientY - sy);
+    clampOffset(); applyTransform();
+  });
+  document.addEventListener('mouseup', () => { drag = false; });
+
+  // ── Drag (touch) ─────────────────────────────────────────────────────────────
+  cropArea.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    drag = true; sx = t.clientX; sy = t.clientY; sox = offsetX; soy = offsetY;
+    e.preventDefault();
+  }, { passive: false });
+  cropArea.addEventListener('touchmove', e => {
+    if (!drag) return;
+    const t = e.touches[0];
+    offsetX = sox + (t.clientX - sx);
+    offsetY = soy + (t.clientY - sy);
+    clampOffset(); applyTransform();
+    e.preventDefault();
+  }, { passive: false });
+  cropArea.addEventListener('touchend', () => { drag = false; });
+
+  // ── Confirmar recorte ────────────────────────────────────────────────────────
+  document.getElementById('crop-confirm-btn').addEventListener('click', () => {
+    canvas.width  = OUT_SIZE;
+    canvas.height = OUT_SIZE;
+    ctx.clearRect(0, 0, OUT_SIZE, OUT_SIZE);
+
+    // Clip circular
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(OUT_SIZE / 2, OUT_SIZE / 2, OUT_SIZE / 2, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Origen del círculo de recorte en el espacio del widget
+    const clipLeft = (WIDGET / 2) - CIRCLE_R;
+    const clipTop  = (WIDGET / 2) - CIRCLE_R;
+
+    // Posición de la imagen en el espacio del widget
+    const imgX = WIDGET / 2 + offsetX - (natW * scale) / 2;
+    const imgY = WIDGET / 2 + offsetY - (natH * scale) / 2;
+
+    // Coordenadas de origen en la imagen natural
+    const srcX = (clipLeft - imgX) / scale;
+    const srcY = (clipTop  - imgY) / scale;
+    const srcS = (CIRCLE_R * 2) / scale;
+
+    ctx.drawImage(cropImg, srcX, srcY, srcS, srcS, 0, 0, OUT_SIZE, OUT_SIZE);
+    ctx.restore();
+
+    preview.src = canvas.toDataURL('image/jpeg', 0.85);
+    showState(3);
+  });
+
+  // ── Cambiar foto (desde modo crop) ───────────────────────────────────────────
+  document.getElementById('crop-change-btn').addEventListener('click', () => {
+    fileInput.value = '';
+    fileInput.click();
+  });
+
+  // ── Reset (desde resultado) ───────────────────────────────────────────────────
+  document.getElementById('crop-reset-btn').addEventListener('click', () => {
+    preview.src = '';
+    fileInput.value = '';
+    zSlider.value = 1;
+    offsetX = offsetY = 0; scale = 1;
+    showState(1);
+  });
+})();
 
 // Bio character count
 document.addEventListener('DOMContentLoaded', () => {
