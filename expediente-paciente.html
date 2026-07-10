@@ -232,6 +232,7 @@ let EXP = null;
 /* ===== Helpers ===== */
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function nz(v){ return (v===null||v===undefined||v==='') ? null : v; }
+function alertable(v){ if(v===null||v===undefined) return false; const t=String(v).trim().toLowerCase().replace(/[.\s]+$/,''); if(t==='') return false; return !['ninguna','ninguno','ningunas','ningunos','ninguna conocida','no','n/a','na','sin','sin alergias','sin antecedentes','nada','none','-','--'].includes(t); }
 function fmtFecha(s){ if(!s) return '—'; return String(s).split('T')[0].split(' ')[0]; }
 function calcEdad(fnac){
   if(!fnac) return '—';
@@ -331,10 +332,10 @@ function renderCabecera(){
 function renderAlertas(){
   const h = EXP.historial || {};
   let html = '';
-  if(nz(h.alergias)){
+  if(alertable(h.alergias)){
     html += `<div class="alerta crit"><span class="ic">⚠️</span><div><strong>Alergias:</strong> <span class="txt">${esc(h.alergias)}</span></div></div>`;
   }
-  if(nz(h.enfermedades_cronicas)){
+  if(alertable(h.enfermedades_cronicas)){
     html += `<div class="alerta warn"><span class="ic">🔶</span><div><strong>Enfermedades crónicas:</strong> <span class="txt">${esc(h.enfermedades_cronicas)}</span></div></div>`;
   }
   const band = document.getElementById('banda-alertas');
@@ -518,7 +519,7 @@ function renderDocumentos(){
         <div class="mini">${esc(nz(d.tipo) || '—')} · ${esc(fmtFecha(d.creado_en))}${nz(d.observaciones) ? ' · ' + esc(d.observaciones) : ''}</div>
       </div>
       <div class="doc-actions">
-        ${nz(d.archivo) ? `<a class="btn btn-sm" href="/${esc(d.archivo)}" target="_blank" rel="noopener">Ver</a>` : ''}
+        ${nz(d.archivo) ? `<a class="btn btn-sm" href="/${esc(d.archivo)}" target="_blank" rel="noopener">Ver</a> <a class="btn btn-sm" href="/${esc(d.archivo)}" download>Descargar</a>` : ''}
         <button class="btn btn-sm btn-danger" onclick="eliminarDocumento(${Number(d.id)})">Eliminar</button>
       </div>
     </div>`).join('') : emptyBox('📁','Sin documentos cargados');
