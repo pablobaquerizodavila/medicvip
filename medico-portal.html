@@ -718,6 +718,7 @@ async function loadReservas() {
           ${r.sala_video ? puedeIniciarVideo(r.horario) ? `<button class="btn-video" onclick="iniciarVideo('${r.sala_video}','${(r.paciente||'').replace(/'/g,'')}')" title="Abrir videollamada">📹 Iniciar videollamada</button>` : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 8px;border:1px dashed var(--border);border-radius:8px;max-width:140px">📹 Video disponible<br>${proximoHorario(r.horario)}</div>` : ''}
           <button class="btn" style="font-size:12px;padding:7px 14px" onclick="verHistorialPaciente(${r.paciente_id})">🩺 Ver historial</button>
           <button class="btn" style="font-size:12px;padding:7px 14px" onclick="abrirNota(${r.id})">📝 Nota clínica</button>
+          <button class="btn" style="font-size:12px;padding:7px 14px;background:#1565C0;color:#fff;border-color:#1565C0" onclick="window.open('/expediente-paciente.html?paciente=${r.paciente_id}','_blank')">📋 Expediente</button>
         </div>
       </div>`}).join('')+'</div>';
   } catch(e) { c.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar</div>'; }

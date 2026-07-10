@@ -88,6 +88,12 @@ try {
         case 'paciente_historial_actualizar': pacienteHistorialActualizar(); break;
         case 'medico_ver_historial':          medicoVerHistorialPaciente();  break;
         case 'medico_guardar_nota':           medicoGuardarNota();           break;
+        case 'medico_expediente':            medicoExpediente();            break;
+        case 'medico_tratamiento_crear':     medicoTratamientoCrear();      break;
+        case 'medico_tratamiento_actualizar':medicoTratamientoActualizar(); break;
+        case 'medico_vitales_registrar':     medicoVitalesRegistrar();      break;
+        case 'medico_documento_subir':       medicoDocumentoSubir();        break;
+        case 'medico_documento_eliminar':    medicoDocumentoEliminar();     break;
         case 'confirmar_consulta':   confirmarConsulta();    break;
         case 'procesar_reembolsos':  procesarReembolsos();   break;
         case 'admin_reembolso':      adminReembolso();       break;
@@ -715,8 +721,8 @@ function checkPaciente(): int {
 }
 
 function upsertHistorial(mysqli $db, int $pid, array $data): void {
-    $fuma    = in_array($data['fuma'] ?? 'No', ['No','Sí','Ex-fumador'], true) ? $data['fuma'] : 'No';
-    $alcohol = in_array($data['alcohol'] ?? 'No', ['No','Ocasional','Frecuente'], true) ? $data['alcohol'] : 'No';
+    $fuma    = in_array($data['fuma'] ?? '', ['No','Sí','Ex-fumador'], true) ? $data['fuma'] : 'No';
+    $alcohol = in_array($data['alcohol'] ?? '', ['No','Ocasional','Frecuente'], true) ? $data['alcohol'] : 'No';
     $peso    = (isset($data['peso']) && $data['peso'] !== '') ? (float)$data['peso'] : null;
     $est     = (isset($data['estatura']) && $data['estatura'] !== '') ? (int)$data['estatura'] : null;
     $ts = (string)($data['tipo_sangre'] ?? ''); $al = (string)($data['alergias'] ?? '');
@@ -788,6 +794,9 @@ function pacientePerfil(): void {
     $st = $db->prepare('SELECT r.id,r.horario,r.motivo,r.estado_pago,r.estado_consulta,r.sala_video,r.token_acceso,r.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, e.especialidad, cn.diagnostico, cn.indicaciones, cn.notas FROM reservas r JOIN medicos m ON m.id=r.medico_id LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN consulta_notas cn ON cn.reserva_id=r.id WHERE r.paciente_id=? ORDER BY r.creado_en DESC');
     $st->bind_param('i', $pid); $st->execute();
     $perfil['reservas'] = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stT = $db->prepare('SELECT id,medicamento,dosis,frecuencia,via,duracion,fecha_inicio,estado,resultado,nota_cierre,fecha_cierre FROM tratamientos WHERE paciente_id=? ORDER BY creado_en DESC');
+    $stT->bind_param('i', $pid); $stT->execute();
+    $perfil['tratamientos'] = $stT->get_result()->fetch_all(MYSQLI_ASSOC);
     jsonOk($perfil);
 }
 
@@ -831,9 +840,129 @@ function medicoGuardarNota(): void {
     $pid = (int)$res['paciente_id'];
     $diag = (string)($data['diagnostico'] ?? ''); $ind = (string)($data['indicaciones'] ?? ''); $not = (string)($data['notas'] ?? '');
     $db = getDB();
-    $st = $db->prepare('INSERT INTO consulta_notas (reserva_id,medico_id,paciente_id,diagnostico,indicaciones,notas) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE diagnostico=VALUES(diagnostico),indicaciones=VALUES(indicaciones),notas=VALUES(notas)');
-    $st->bind_param('iiisss', $rid, $medicoId, $pid, $diag, $ind, $not); $st->execute();
+    $cie = (string)($data['cie10'] ?? ''); $plan = (string)($data['plan'] ?? '');
+    $pc  = !empty($data['proximo_control']) ? (string)$data['proximo_control'] : null;
+    $st = $db->prepare('INSERT INTO consulta_notas (reserva_id,medico_id,paciente_id,diagnostico,indicaciones,notas,cie10,plan,proximo_control) VALUES (?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE diagnostico=VALUES(diagnostico),indicaciones=VALUES(indicaciones),notas=VALUES(notas),cie10=VALUES(cie10),plan=VALUES(plan),proximo_control=VALUES(proximo_control)');
+    $st->bind_param('iiissssss', $rid, $medicoId, $pid, $diag, $ind, $not, $cie, $plan, $pc); $st->execute();
     jsonOk(['mensaje' => 'Nota clínica guardada']);
+}
+
+// ── EXPEDIENTE CLÍNICO (MÉDICO) ───────────────────────────────────────────────
+function checkRelacionMedicoPaciente(int $medicoId, int $pid): void {
+    if (!fetchOne(query('SELECT id FROM reservas WHERE medico_id=? AND paciente_id=? LIMIT 1', 'ii', [$medicoId, $pid])))
+        jsonError('No tienes citas con este paciente', 403);
+}
+
+function guardarDocumentoBase64(string $base64, string $mime): ?string {
+    $extMap = ['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+    if (preg_match('#^data:([^;]+);base64,#', $base64, $m)) { $mime = $m[1]; $base64 = substr($base64, strpos($base64, ',') + 1); }
+    if (!isset($extMap[$mime])) return null;
+    $bin = base64_decode($base64, true);
+    if ($bin === false || strlen($bin) < 1 || strlen($bin) > 8 * 1024 * 1024) return null;
+    $dir = rtrim(dirname(rtrim(UPLOAD_DIR, '/')), '/') . '/documentos/';
+    $url = rtrim(dirname(rtrim(UPLOAD_URL, '/')), '/') . '/documentos/';
+    if (!is_dir($dir)) @mkdir($dir, 0755, true);
+    if (!is_writable($dir)) return null;
+    $filename = bin2hex(random_bytes(16)) . '.' . $extMap[$mime];
+    return file_put_contents($dir . $filename, $bin) !== false ? $url . $filename : null;
+}
+
+function medicoExpediente(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0);
+    if (!$pid) jsonError('Falta paciente_id');
+    checkRelacionMedicoPaciente($medicoId, $pid);
+    $db = getDB(); $out = [];
+    $out['paciente'] = fetchOne(query('SELECT id,nombre,email,telefono,cedula,fecha_nacimiento,genero,ciudad FROM pacientes WHERE id=?', 'i', [$pid]));
+    $out['historial'] = fetchOne(query('SELECT tipo_sangre,alergias,enfermedades_cronicas,medicamentos_actuales,cirugias_previas,fuma,alcohol,peso,estatura,antecedentes_familiares,actualizado_en FROM paciente_historial WHERE paciente_id=?', 'i', [$pid]));
+    $st = $db->prepare('SELECT cn.reserva_id,r.horario,cn.creado_en,cn.diagnostico,cn.cie10,cn.indicaciones,cn.plan,cn.proximo_control,cn.notas,cn.actualizado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico FROM consulta_notas cn JOIN reservas r ON r.id=cn.reserva_id JOIN medicos m ON m.id=cn.medico_id WHERE cn.paciente_id=? ORDER BY cn.creado_en DESC');
+    $st->bind_param('i',$pid); $st->execute(); $out['consultas']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st = $db->prepare('SELECT t.id,t.medicamento,t.dosis,t.frecuencia,t.via,t.duracion,t.fecha_inicio,t.estado,t.resultado,t.nota_cierre,t.fecha_cierre,t.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico FROM tratamientos t JOIN medicos m ON m.id=t.medico_id WHERE t.paciente_id=? ORDER BY t.creado_en DESC');
+    $st->bind_param('i',$pid); $st->execute(); $out['tratamientos']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st = $db->prepare('SELECT id,presion_sistolica,presion_diastolica,frecuencia_cardiaca,frecuencia_respiratoria,saturacion_o2,temperatura,peso,estatura,glucosa,registrado_en FROM signos_vitales WHERE paciente_id=? ORDER BY registrado_en DESC');
+    $st->bind_param('i',$pid); $st->execute(); $out['vitales']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st = $db->prepare('SELECT id,tipo,titulo,archivo,mime,observaciones,creado_en FROM documentos WHERE paciente_id=? ORDER BY creado_en DESC');
+    $st->bind_param('i',$pid); $st->execute(); $out['documentos']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st = $db->prepare('SELECT id,horario,estado_consulta,creado_en FROM reservas WHERE paciente_id=? AND medico_id=? ORDER BY creado_en DESC');
+    $st->bind_param('ii',$pid,$medicoId); $st->execute(); $out['reservas']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    jsonOk($out);
+}
+
+function medicoTratamientoCrear(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0); if (!$pid) jsonError('Falta paciente_id');
+    checkRelacionMedicoPaciente($medicoId, $pid);
+    $med = trim((string)($data['medicamento'] ?? '')); if ($med === '') jsonError('Falta el medicamento');
+    $rid = !empty($data['reserva_id']) ? (int)$data['reserva_id'] : null;
+    $dosis=(string)($data['dosis']??''); $frec=(string)($data['frecuencia']??''); $via=(string)($data['via']??''); $dur=(string)($data['duracion']??'');
+    $fi = !empty($data['fecha_inicio']) ? (string)$data['fecha_inicio'] : null;
+    $db = getDB();
+    $st = $db->prepare('INSERT INTO tratamientos (paciente_id,medico_id,reserva_id,medicamento,dosis,frecuencia,via,duracion,fecha_inicio) VALUES (?,?,?,?,?,?,?,?,?)');
+    $st->bind_param('iiissssss', $pid, $medicoId, $rid, $med, $dosis, $frec, $via, $dur, $fi);
+    $st->execute();
+    jsonOk(['id'=>(int)$db->insert_id,'mensaje'=>'Tratamiento registrado']);
+}
+
+function medicoTratamientoActualizar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $tid = (int)($data['tratamiento_id'] ?? 0); if (!$tid) jsonError('Falta tratamiento_id');
+    $t = fetchOne(query('SELECT paciente_id FROM tratamientos WHERE id=?', 'i', [$tid]));
+    if (!$t) jsonError('Tratamiento no encontrado', 404);
+    checkRelacionMedicoPaciente($medicoId, (int)$t['paciente_id']);
+    $estado = in_array($data['estado'] ?? '', ['activo','finalizado','suspendido'], true) ? $data['estado'] : 'activo';
+    $resultado = in_array($data['resultado'] ?? '', ['pendiente','resolvio','mejoro','sin_cambio','empeoro'], true) ? $data['resultado'] : 'pendiente';
+    $nota = (string)($data['nota_cierre'] ?? '');
+    $fc = !empty($data['fecha_cierre']) ? (string)$data['fecha_cierre'] : (($estado==='finalizado') ? date('Y-m-d') : null);
+    $db = getDB();
+    $st = $db->prepare('UPDATE tratamientos SET estado=?, resultado=?, nota_cierre=?, fecha_cierre=? WHERE id=?');
+    $st->bind_param('ssssi', $estado, $resultado, $nota, $fc, $tid);
+    $st->execute();
+    jsonOk(['mensaje'=>'Tratamiento actualizado']);
+}
+
+function medicoVitalesRegistrar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0); if (!$pid) jsonError('Falta paciente_id');
+    checkRelacionMedicoPaciente($medicoId, $pid);
+    $rid = !empty($data['reserva_id']) ? (int)$data['reserva_id'] : null;
+    $iv = function($k) use ($data){ return (isset($data[$k]) && $data[$k] !== '') ? (int)$data[$k] : null; };
+    $fv = function($k) use ($data){ return (isset($data[$k]) && $data[$k] !== '') ? (float)$data[$k] : null; };
+    $ps=$iv('presion_sistolica'); $pd=$iv('presion_diastolica'); $fc=$iv('frecuencia_cardiaca'); $fr=$iv('frecuencia_respiratoria');
+    $sat=$iv('saturacion_o2'); $temp=$fv('temperatura'); $peso=$fv('peso'); $est=$iv('estatura'); $glu=$iv('glucosa');
+    $db = getDB();
+    $st = $db->prepare('INSERT INTO signos_vitales (paciente_id,medico_id,reserva_id,presion_sistolica,presion_diastolica,frecuencia_cardiaca,frecuencia_respiratoria,saturacion_o2,temperatura,peso,estatura,glucosa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)');
+    $st->bind_param('iiiiiiiiddii', $pid, $medicoId, $rid, $ps, $pd, $fc, $fr, $sat, $temp, $peso, $est, $glu);
+    $st->execute();
+    jsonOk(['mensaje'=>'Signos vitales registrados']);
+}
+
+function medicoDocumentoSubir(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0); if (!$pid) jsonError('Falta paciente_id');
+    checkRelacionMedicoPaciente($medicoId, $pid);
+    $b64 = (string)($data['archivo_base64'] ?? ''); if ($b64 === '') jsonError('Falta el archivo');
+    $ruta = guardarDocumentoBase64($b64, (string)($data['mime'] ?? ''));
+    if (!$ruta) jsonError('Archivo no válido (PDF/JPG/PNG/WEBP ≤ 8 MB)');
+    $rid = !empty($data['reserva_id']) ? (int)$data['reserva_id'] : null;
+    $tipo=(string)($data['tipo']??'otro'); $tit=(string)($data['titulo']??''); $mime=(string)($data['mime']??''); $obs=(string)($data['observaciones']??'');
+    $tam = isset($data['tamano']) ? (int)$data['tamano'] : 0;
+    $db = getDB();
+    $st = $db->prepare('INSERT INTO documentos (paciente_id,medico_id,reserva_id,tipo,titulo,archivo,mime,tamano,observaciones) VALUES (?,?,?,?,?,?,?,?,?)');
+    $st->bind_param('iiissssis', $pid, $medicoId, $rid, $tipo, $tit, $ruta, $mime, $tam, $obs);
+    $st->execute();
+    jsonOk(['id'=>(int)$db->insert_id,'archivo'=>$ruta,'mensaje'=>'Documento subido']);
+}
+
+function medicoDocumentoEliminar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $did = (int)($data['documento_id'] ?? 0); if (!$did) jsonError('Falta documento_id');
+    $doc = fetchOne(query('SELECT paciente_id,archivo FROM documentos WHERE id=?', 'i', [$did]));
+    if (!$doc) jsonError('Documento no encontrado', 404);
+    checkRelacionMedicoPaciente($medicoId, (int)$doc['paciente_id']);
+    $abs = __DIR__ . '/' . ltrim((string)$doc['archivo'], '/');
+    if (is_file($abs)) @unlink($abs);
+    getDB()->query('DELETE FROM documentos WHERE id=' . $did);
+    jsonOk(['mensaje'=>'Documento eliminado']);
 }
 
 // ── CONFIRMAR CONSULTA ────────────────────────────────────────────────────────

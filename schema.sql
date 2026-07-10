@@ -228,12 +228,74 @@ CREATE TABLE `consulta_notas` (
   `diagnostico` text DEFAULT NULL,
   `indicaciones` text DEFAULT NULL,
   `notas` text DEFAULT NULL,
+  `plan` text DEFAULT NULL,
+  `proximo_control` date DEFAULT NULL,
+  `cie10` varchar(120) DEFAULT NULL,
   `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
   `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_reserva` (`reserva_id`),
   KEY `idx_paciente` (`paciente_id`),
   CONSTRAINT `fk_nota_reserva` FOREIGN KEY (`reserva_id`) REFERENCES `reservas` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `tratamientos`;
+CREATE TABLE `tratamientos` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `medico_id` int(10) unsigned NOT NULL,
+  `reserva_id` int(10) unsigned DEFAULT NULL,
+  `medicamento` varchar(200) NOT NULL,
+  `dosis` varchar(100) DEFAULT NULL,
+  `frecuencia` varchar(100) DEFAULT NULL,
+  `via` varchar(60) DEFAULT NULL,
+  `duracion` varchar(100) DEFAULT NULL,
+  `fecha_inicio` date DEFAULT NULL,
+  `estado` enum('activo','finalizado','suspendido') NOT NULL DEFAULT 'activo',
+  `resultado` enum('pendiente','resolvio','mejoro','sin_cambio','empeoro') NOT NULL DEFAULT 'pendiente',
+  `nota_cierre` text DEFAULT NULL,
+  `fecha_cierre` date DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_paciente` (`paciente_id`),
+  CONSTRAINT `fk_trat_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `signos_vitales`;
+CREATE TABLE `signos_vitales` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `medico_id` int(10) unsigned NOT NULL,
+  `reserva_id` int(10) unsigned DEFAULT NULL,
+  `presion_sistolica` smallint(5) unsigned DEFAULT NULL,
+  `presion_diastolica` smallint(5) unsigned DEFAULT NULL,
+  `frecuencia_cardiaca` smallint(5) unsigned DEFAULT NULL,
+  `frecuencia_respiratoria` smallint(5) unsigned DEFAULT NULL,
+  `saturacion_o2` tinyint(3) unsigned DEFAULT NULL,
+  `temperatura` decimal(4,1) DEFAULT NULL,
+  `peso` decimal(5,2) DEFAULT NULL,
+  `estatura` smallint(5) unsigned DEFAULT NULL,
+  `glucosa` smallint(5) unsigned DEFAULT NULL,
+  `registrado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_paciente` (`paciente_id`),
+  CONSTRAINT `fk_vitales_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `documentos`;
+CREATE TABLE `documentos` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `medico_id` int(10) unsigned NOT NULL,
+  `reserva_id` int(10) unsigned DEFAULT NULL,
+  `tipo` varchar(40) NOT NULL DEFAULT 'otro',
+  `titulo` varchar(200) DEFAULT NULL,
+  `archivo` varchar(255) NOT NULL,
+  `mime` varchar(100) DEFAULT NULL,
+  `tamano` int(10) unsigned DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_paciente` (`paciente_id`),
+  CONSTRAINT `fk_doc_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;

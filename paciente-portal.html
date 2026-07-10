@@ -127,6 +127,7 @@
     <nav style="flex:1">
       <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">🏠</span> Inicio</div>
       <div class="nav-item" onclick="showSection('citas',this)"><span class="nav-icon">📅</span> Mis citas</div>
+      <div class="nav-item" onclick="showSection('tratamientos',this)"><span class="nav-icon">💊</span> Mis tratamientos</div>
       <div class="nav-item" onclick="showSection('historial',this)"><span class="nav-icon">📋</span> Mi historial médico</div>
       <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
     </nav>
@@ -156,6 +157,12 @@
       <div id="proximas-container"><div class="loading">Cargando...</div></div>
       <div class="subhead">🗂 Historial de citas</div>
       <div id="historial-citas-container"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <div class="section" id="section-tratamientos">
+      <div class="page-title">💊 Mis tratamientos</div>
+      <p class="page-sub">Tratamientos indicados por tus médicos y su evolución.</p>
+      <div id="tratamientos-lista"></div>
     </div>
 
     <div class="section" id="section-historial">
@@ -338,6 +345,24 @@ async function loadPerfil() {
 
     // Historial médico
     fillHistorial(p.historial || {});
+
+    // Tratamientos
+    const _tcont = document.getElementById('tratamientos-lista');
+    if (_tcont) {
+      const ts = (p.tratamientos) || [];
+      const resLbl = {pendiente:'En curso',resolvio:'Resolvió',mejoro:'Mejoró',sin_cambio:'Sin cambio',empeoro:'Empeoró'};
+      const resCol = {pendiente:'#6c757d',resolvio:'#1d9e75',mejoro:'#1d9e75',sin_cambio:'#b8860b',empeoro:'#C0392B'};
+      const estCol = {activo:'#1565C0',finalizado:'#6c757d',suspendido:'#B8860B'};
+      _tcont.innerHTML = ts.length ? ts.map(t => `<div style="border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;background:var(--white)">
+          <div style="font-weight:600">${t.medicamento||''}${t.dosis?(' · '+t.dosis):''}</div>
+          <div style="font-size:13px;color:var(--muted)">${[t.frecuencia,t.via,t.duracion].filter(Boolean).join(' · ')}</div>
+          <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+            <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:${(estCol[t.estado]||'#6c757d')}22;color:${estCol[t.estado]||'#6c757d'}">${t.estado}</span>
+            <span style="font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px;background:${(resCol[t.resultado]||'#6c757d')}22;color:${resCol[t.resultado]||'#6c757d'}">${resLbl[t.resultado]||t.resultado||''}</span>
+          </div>
+          ${t.nota_cierre?`<div style="font-size:12px;color:var(--muted);margin-top:6px">🏁 ${t.nota_cierre}</div>`:''}
+        </div>`).join('') : '<p style="color:var(--muted);font-size:14px">Aún no tienes tratamientos registrados.</p>';
+    }
 
     // Perfil
     document.getElementById('pf-nombre').value   = p.nombre  || '';
