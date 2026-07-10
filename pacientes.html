@@ -484,15 +484,11 @@ function openBooking(docId) {
 
       <div style="background:var(--green-light);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--green-dark);display:flex;align-items:center;gap:8px">
         <span style="font-size:16px">👤</span>
-        <div>Agendas como: <strong>${PACIENTE_NOMBRE || 'tu cuenta'}</strong></div>
+        <div>Agendas como: <strong>${PACIENTE_NOMBRE || 'tu cuenta'}</strong><br><span style="font-size:11px;opacity:.85">Tu historial médico (alergias, medicamentos, etc.) ya está en tu cuenta — el médico lo verá.</span></div>
       </div>
       <div class="form-group">
         <label>Motivo de consulta *</label>
         <textarea id="book-motivo" placeholder="Describe brevemente tus síntomas o el motivo de la consulta..."></textarea>
-      </div>
-      <div class="form-group">
-        <label>¿Tienes alergias o tomas medicamentos?</label>
-        <input type="text" id="book-alergias" placeholder="Opcional — ayuda al médico a prepararse">
       </div>
 
       <!-- Método de pago -->
@@ -554,7 +550,7 @@ function _captureForm(docId, slot) {
     docId, slot,
     nombre: PACIENTE_NOMBRE, email: '', tel: '', edad: '',
     motivo:   (document.getElementById('book-motivo')?.value || '').trim(),
-    alergias: (document.getElementById('book-alergias')?.value || '').trim(),
+    alergias: '',
     metodo:   document.querySelector('input[name=pay]:checked')?.value || 'card',
   };
   return _bookingForm;
