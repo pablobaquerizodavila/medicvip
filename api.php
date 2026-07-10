@@ -78,6 +78,7 @@ try {
         case 'medico_codigos':        medicoCodigos();        break;
         case 'medico_codigo_crear':   medicoCodigoCrear();    break;
         case 'medico_codigo_revocar': medicoCodigoRevocar();  break;
+        case 'medico_codigo_eliminar': medicoCodigoEliminar(); break;
         case 'validar_codigo':        validarCodigo();        break;
         case 'paciente_registro':             pacienteRegistro();            break;
         case 'paciente_login':                pacienteLogin();               break;
@@ -669,6 +670,19 @@ function medicoCodigoRevocar(): void {
     $stmt->bind_param('ii', $id, $medicoId); $stmt->execute();
     if ($db->affected_rows < 1) jsonError('Código no encontrado o ya revocado');
     jsonOk(['mensaje' => 'Código revocado']);
+}
+
+function medicoCodigoEliminar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($data['codigo_id'] ?? 0);
+    if (!$id) jsonError('Falta codigo_id');
+    $db = getDB();
+    // DELETE cascada: borra también las filas de codigo_usos (FK ON DELETE CASCADE).
+    // Las reservas ya creadas NO se tocan (no dependen de esta tabla).
+    $stmt = $db->prepare('DELETE FROM medico_codigos WHERE id=? AND medico_id=?');
+    $stmt->bind_param('ii', $id, $medicoId); $stmt->execute();
+    if ($db->affected_rows < 1) jsonError('Código no encontrado');
+    jsonOk(['mensaje' => 'Código eliminado']);
 }
 
 function validarCodigo(): void {
