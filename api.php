@@ -28,7 +28,7 @@ if (defined('ALLOW_CORS_ANY') && ALLOW_CORS_ANY) {
 }
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-Admin-Token, X-Medico-Token');
+header('Access-Control-Allow-Headers: Content-Type, X-Admin-Token, X-Medico-Token, X-Paciente-Token');
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
 
 function getDB(): mysqli {
@@ -79,6 +79,14 @@ try {
         case 'medico_codigo_crear':   medicoCodigoCrear();    break;
         case 'medico_codigo_revocar': medicoCodigoRevocar();  break;
         case 'validar_codigo':        validarCodigo();        break;
+        case 'paciente_registro':             pacienteRegistro();            break;
+        case 'paciente_login':                pacienteLogin();               break;
+        case 'paciente_recuperar':            pacienteRecuperar();           break;
+        case 'paciente_perfil':               pacientePerfil();              break;
+        case 'paciente_actualizar':           pacienteActualizar();          break;
+        case 'paciente_historial_actualizar': pacienteHistorialActualizar(); break;
+        case 'medico_ver_historial':          medicoVerHistorialPaciente();  break;
+        case 'medico_guardar_nota':           medicoGuardarNota();           break;
         case 'confirmar_consulta':   confirmarConsulta();    break;
         case 'procesar_reembolsos':  procesarReembolsos();   break;
         case 'admin_reembolso':      adminReembolso();       break;
@@ -170,22 +178,14 @@ function listarMedicos(): void {
 // ── CREAR RESERVA ─────────────────────────────────────────────────────────────
 function crearReserva(): void {
     $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-    foreach (['medico_id','nombre_paciente','email_paciente','horario','metodo_pago'] as $f)
+    foreach (['medico_id','horario','metodo_pago'] as $f)
         if (empty($data[$f])) throw new Exception("Campo requerido: $f");
 
+    $pacienteId = checkPaciente();
     $db  = getDB();
-    $row = fetchOne(query('SELECT id FROM pacientes WHERE email=?','s',[$data['email_paciente']]));
-    if ($row) {
-        $pacienteId = $row['id'];
-    } else {
-        $edad = !empty($data['edad']) ? (int)$data['edad'] : 0;
-        $tel  = (string)($data['telefono_paciente'] ?? '');
-        $stmt = $db->prepare('INSERT INTO pacientes (nombre,email,telefono,edad) VALUES (?,?,?,?)');
-        if (!$stmt) throw new Exception('Prepare pacientes: '.$db->error);
-        $stmt->bind_param('sssi',$data['nombre_paciente'],$data['email_paciente'],$tel,$edad);
-        if (!$stmt->execute()) throw new Exception('Execute pacientes: '.$stmt->error);
-        $pacienteId = (int)$db->insert_id;
-    }
+    $pac = fetchOne(query('SELECT nombre,email FROM pacientes WHERE id=?','i',[$pacienteId]));
+    $data['nombre_paciente'] = $pac['nombre'];
+    $data['email_paciente']  = $pac['email'];
 
     $pago = fetchOne(query('SELECT tarifa FROM medico_pago WHERE medico_id=?','i',[(int)$data['medico_id']]));
     if (!$pago) throw new Exception('Medico no encontrado o sin tarifa.');
@@ -561,7 +561,7 @@ function medicoPerfil(): void {
     $stmt2=$db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $stmt2->bind_param('i',$medicoId); $stmt2->execute();
     $perfil['disponibilidad']=$stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
-    $stmt3=$db->prepare('SELECT r.id,r.horario,r.motivo,r.monto_medico,r.estado_pago,r.estado_consulta,r.limite_confirmacion,r.notas_cancelacion,r.sala_video,p.nombre AS paciente,p.email AS email_paciente FROM reservas r JOIN pacientes p ON p.id=r.paciente_id WHERE r.medico_id=? ORDER BY r.horario DESC');
+    $stmt3=$db->prepare('SELECT r.id,r.paciente_id,r.horario,r.motivo,r.monto_medico,r.estado_pago,r.estado_consulta,r.limite_confirmacion,r.notas_cancelacion,r.sala_video,p.nombre AS paciente,p.email AS email_paciente FROM reservas r JOIN pacientes p ON p.id=r.paciente_id WHERE r.medico_id=? ORDER BY r.horario DESC');
     $stmt3->bind_param('i',$medicoId); $stmt3->execute();
     $perfil['reservas']=$stmt3->get_result()->fetch_all(MYSQLI_ASSOC);
     $perfil['total_reservas']=count($perfil['reservas']);
@@ -682,6 +682,144 @@ function validarCodigo(): void {
     if ($row['estado'] === 'agotado' || (int)$row['usos_count'] >= (int)$row['usos_max']) { jsonOk(['valido' => false, 'motivo' => 'Código agotado']); return; }
     if ($row['expira_en'] && $row['expira_en'] < date('Y-m-d')) { jsonOk(['valido' => false, 'motivo' => 'Código vencido']); return; }
     jsonOk(['valido' => true, 'restantes' => (int)$row['usos_max'] - (int)$row['usos_count']]);
+}
+
+// ── PACIENTE: AUTH ────────────────────────────────────────────────────────────
+function checkPaciente(): int {
+    $token = $_SERVER['HTTP_X_PACIENTE_TOKEN'] ?? '';
+    if (!$token) jsonError('No autorizado', 401);
+    try {
+        $claims = jwtDecode($token);
+        if (($claims['role'] ?? '') !== 'paciente' || empty($claims['sub'])) throw new Exception('Rol o sub ausente');
+        $id = (int)$claims['sub'];
+        if (!fetchOne(query('SELECT id FROM pacientes WHERE id=?', 'i', [$id]))) throw new Exception('Paciente no existe');
+        return $id;
+    } catch (Exception $e) {
+        jsonError('Sesión inválida o expirada: ' . $e->getMessage(), 401);
+        return 0;
+    }
+}
+
+function upsertHistorial(mysqli $db, int $pid, array $data): void {
+    $fuma    = in_array($data['fuma'] ?? 'No', ['No','Sí','Ex-fumador'], true) ? $data['fuma'] : 'No';
+    $alcohol = in_array($data['alcohol'] ?? 'No', ['No','Ocasional','Frecuente'], true) ? $data['alcohol'] : 'No';
+    $peso    = (isset($data['peso']) && $data['peso'] !== '') ? (float)$data['peso'] : null;
+    $est     = (isset($data['estatura']) && $data['estatura'] !== '') ? (int)$data['estatura'] : null;
+    $ts = (string)($data['tipo_sangre'] ?? ''); $al = (string)($data['alergias'] ?? '');
+    $ec = (string)($data['enfermedades_cronicas'] ?? ''); $ma = (string)($data['medicamentos_actuales'] ?? '');
+    $cp = (string)($data['cirugias_previas'] ?? ''); $af = (string)($data['antecedentes_familiares'] ?? '');
+    $st = $db->prepare('INSERT INTO paciente_historial (paciente_id,tipo_sangre,alergias,enfermedades_cronicas,medicamentos_actuales,cirugias_previas,fuma,alcohol,peso,estatura,antecedentes_familiares) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE tipo_sangre=VALUES(tipo_sangre),alergias=VALUES(alergias),enfermedades_cronicas=VALUES(enfermedades_cronicas),medicamentos_actuales=VALUES(medicamentos_actuales),cirugias_previas=VALUES(cirugias_previas),fuma=VALUES(fuma),alcohol=VALUES(alcohol),peso=VALUES(peso),estatura=VALUES(estatura),antecedentes_familiares=VALUES(antecedentes_familiares)');
+    $st->bind_param('isssssssdis', $pid, $ts, $al, $ec, $ma, $cp, $fuma, $alcohol, $peso, $est, $af);
+    $st->execute();
+}
+
+function pacienteRegistro(): void {
+    $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+    $nombre = trim(trim((string)($data['nombres'] ?? $data['nombre'] ?? '')) . ' ' . trim((string)($data['apellidos'] ?? '')));
+    $email  = strtolower(trim((string)($data['email'] ?? '')));
+    $pass   = (string)($data['password'] ?? '');
+    if ($nombre === '' || $email === '') throw new Exception('Nombre y correo requeridos.');
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new Exception('Correo no válido.');
+    if (strlen($pass) < 8) throw new Exception('La contraseña debe tener mínimo 8 caracteres.');
+    $db = getDB();
+    $existe = fetchOne(query('SELECT id,password_hash FROM pacientes WHERE email=?', 's', [$email]));
+    if ($existe && !empty($existe['password_hash'])) throw new Exception('Ya existe una cuenta con ese correo.');
+    $hash = password_hash($pass, PASSWORD_BCRYPT);
+    $tel = (string)($data['telefono'] ?? ''); $ced = (string)($data['cedula'] ?? '');
+    $fn  = !empty($data['fecha_nacimiento']) ? (string)$data['fecha_nacimiento'] : null;
+    $gen = (string)($data['genero'] ?? ''); $ciu = (string)($data['ciudad'] ?? '');
+    $db->begin_transaction();
+    if ($existe) {
+        $pacienteId = (int)$existe['id'];
+        $st = $db->prepare('UPDATE pacientes SET nombre=?,telefono=?,cedula=?,fecha_nacimiento=?,genero=?,ciudad=?,password_hash=? WHERE id=?');
+        $st->bind_param('sssssssi', $nombre, $tel, $ced, $fn, $gen, $ciu, $hash, $pacienteId);
+        if (!$st->execute()) { $db->rollback(); throw new Exception('No se pudo actualizar: '.$st->error); }
+    } else {
+        $st = $db->prepare('INSERT INTO pacientes (nombre,email,telefono,cedula,fecha_nacimiento,genero,ciudad,password_hash) VALUES (?,?,?,?,?,?,?,?)');
+        $st->bind_param('ssssssss', $nombre, $email, $tel, $ced, $fn, $gen, $ciu, $hash);
+        if (!$st->execute()) { $db->rollback(); throw new Exception('No se pudo registrar: '.$st->error); }
+        $pacienteId = (int)$db->insert_id;
+    }
+    upsertHistorial($db, $pacienteId, $data);
+    $db->commit();
+    $token = jwtEncode(['role' => 'paciente', 'sub' => $pacienteId]);
+    jsonOk(['token' => $token, 'paciente' => ['id' => $pacienteId, 'nombre' => $nombre, 'email' => $email], 'expira_en' => defined('JWT_EXP_SECONDS') ? (int)JWT_EXP_SECONDS : 28800]);
+}
+
+function pacienteLogin(): void {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (empty($data['email']) || empty($data['password'])) jsonError('Email y password requeridos');
+    $row = fetchOne(query('SELECT id,nombre,email,password_hash,estado FROM pacientes WHERE email=?', 's', [strtolower(trim($data['email']))]));
+    if (!$row || empty($row['password_hash']) || !password_verify($data['password'], $row['password_hash'])) jsonError('Credenciales incorrectas', 401);
+    if (($row['estado'] ?? 'activo') === 'inactivo') jsonError('Cuenta inactiva', 403);
+    $token = jwtEncode(['role' => 'paciente', 'sub' => (int)$row['id']]);
+    jsonOk(['token' => $token, 'paciente' => ['id' => (int)$row['id'], 'nombre' => $row['nombre'], 'email' => $row['email']], 'expira_en' => defined('JWT_EXP_SECONDS') ? (int)JWT_EXP_SECONDS : 28800]);
+}
+
+function pacienteRecuperar(): void {
+    $data = json_decode(file_get_contents('php://input'), true);
+    if (empty($data['email'])) jsonError('Email requerido');
+    $row = fetchOne(query('SELECT id FROM pacientes WHERE email=?', 's', [strtolower(trim($data['email']))]));
+    if (!$row) { jsonOk(['mensaje' => 'Si el correo existe recibirás instrucciones']); return; }
+    $temp = 'Pac' . rand(1000, 9999) . '!'; $hash = password_hash($temp, PASSWORD_BCRYPT);
+    $db = getDB(); $st = $db->prepare('UPDATE pacientes SET password_hash=? WHERE id=?'); $st->bind_param('si', $hash, $row['id']); $st->execute();
+    jsonOk(['mensaje' => 'Password temporal generado', 'password_temp' => $temp]);
+}
+
+// ── PACIENTE: PERFIL E HISTORIAL ──────────────────────────────────────────────
+function pacientePerfil(): void {
+    $pid = checkPaciente(); $db = getDB();
+    $perfil = fetchOne(query('SELECT id,nombre,email,telefono,cedula,fecha_nacimiento,genero,ciudad,creado_en FROM pacientes WHERE id=?', 'i', [$pid]));
+    $perfil['historial'] = fetchOne(query('SELECT tipo_sangre,alergias,enfermedades_cronicas,medicamentos_actuales,cirugias_previas,fuma,alcohol,peso,estatura,antecedentes_familiares,actualizado_en FROM paciente_historial WHERE paciente_id=?', 'i', [$pid]));
+    $st = $db->prepare('SELECT r.id,r.horario,r.motivo,r.estado_pago,r.estado_consulta,r.sala_video,r.token_acceso,r.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, e.especialidad, cn.diagnostico, cn.indicaciones, cn.notas FROM reservas r JOIN medicos m ON m.id=r.medico_id LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN consulta_notas cn ON cn.reserva_id=r.id WHERE r.paciente_id=? ORDER BY r.creado_en DESC');
+    $st->bind_param('i', $pid); $st->execute();
+    $perfil['reservas'] = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    jsonOk($perfil);
+}
+
+function pacienteActualizar(): void {
+    $pid = checkPaciente(); $data = json_decode(file_get_contents('php://input'), true);
+    $tel = (string)($data['telefono'] ?? ''); $gen = (string)($data['genero'] ?? ''); $ciu = (string)($data['ciudad'] ?? '');
+    $fn  = !empty($data['fecha_nacimiento']) ? (string)$data['fecha_nacimiento'] : null;
+    $db = getDB(); $st = $db->prepare('UPDATE pacientes SET telefono=?,genero=?,ciudad=?,fecha_nacimiento=? WHERE id=?');
+    $st->bind_param('ssssi', $tel, $gen, $ciu, $fn, $pid); $st->execute();
+    jsonOk(['mensaje' => 'Perfil actualizado']);
+}
+
+function pacienteHistorialActualizar(): void {
+    $pid = checkPaciente(); $data = json_decode(file_get_contents('php://input'), true);
+    upsertHistorial(getDB(), $pid, $data);
+    jsonOk(['mensaje' => 'Historial actualizado']);
+}
+
+// ── MÉDICO: HISTORIAL Y NOTAS DEL PACIENTE ────────────────────────────────────
+function medicoVerHistorialPaciente(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0);
+    if (!$pid) jsonError('Falta paciente_id');
+    if (!fetchOne(query('SELECT id FROM reservas WHERE medico_id=? AND paciente_id=? LIMIT 1', 'ii', [$medicoId, $pid])))
+        jsonError('No tienes citas con este paciente', 403);
+    $db = getDB();
+    $perfil = fetchOne(query('SELECT id,nombre,email,telefono,fecha_nacimiento,genero,ciudad FROM pacientes WHERE id=?', 'i', [$pid]));
+    $perfil['historial'] = fetchOne(query('SELECT tipo_sangre,alergias,enfermedades_cronicas,medicamentos_actuales,cirugias_previas,fuma,alcohol,peso,estatura,antecedentes_familiares,actualizado_en FROM paciente_historial WHERE paciente_id=?', 'i', [$pid]));
+    $st = $db->prepare('SELECT r.id,r.horario,r.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, cn.diagnostico,cn.indicaciones,cn.notas,cn.actualizado_en FROM consulta_notas cn JOIN reservas r ON r.id=cn.reserva_id JOIN medicos m ON m.id=cn.medico_id WHERE cn.paciente_id=? ORDER BY cn.creado_en DESC');
+    $st->bind_param('i', $pid); $st->execute();
+    $perfil['notas_previas'] = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    jsonOk($perfil);
+}
+
+function medicoGuardarNota(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $rid = (int)($data['reserva_id'] ?? 0);
+    if (!$rid) jsonError('Falta reserva_id');
+    $res = fetchOne(query('SELECT id,paciente_id FROM reservas WHERE id=? AND medico_id=?', 'ii', [$rid, $medicoId]));
+    if (!$res) jsonError('Reserva no encontrada', 404);
+    $pid = (int)$res['paciente_id'];
+    $diag = (string)($data['diagnostico'] ?? ''); $ind = (string)($data['indicaciones'] ?? ''); $not = (string)($data['notas'] ?? '');
+    $db = getDB();
+    $st = $db->prepare('INSERT INTO consulta_notas (reserva_id,medico_id,paciente_id,diagnostico,indicaciones,notas) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE diagnostico=VALUES(diagnostico),indicaciones=VALUES(indicaciones),notas=VALUES(notas)');
+    $st->bind_param('iiisss', $rid, $medicoId, $pid, $diag, $ind, $not); $st->execute();
+    jsonOk(['mensaje' => 'Nota clínica guardada']);
 }
 
 // ── CONFIRMAR CONSULTA ────────────────────────────────────────────────────────
@@ -1011,24 +1149,15 @@ function medicoToggleEmergencia(): void {
 
 function reservarEmergencia(): void {
     $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-    foreach (['medico_id','nombre_paciente','email_paciente'] as $f)
+    foreach (['medico_id'] as $f)
         if (empty($data[$f])) throw new Exception("Campo requerido: $f");
-    if (!filter_var($data['email_paciente'], FILTER_VALIDATE_EMAIL))
-        throw new Exception('Correo inválido.');
 
     $db = getDB();
 
-    // upsert paciente
-    $row = fetchOne(query('SELECT id FROM pacientes WHERE email=?','s',[$data['email_paciente']]));
-    if ($row) {
-        $pacienteId = (int)$row['id'];
-    } else {
-        $tel = (string)($data['telefono_paciente'] ?? '');
-        $stmt = $db->prepare('INSERT INTO pacientes (nombre,email,telefono,edad) VALUES (?,?,?,0)');
-        $stmt->bind_param('sss', $data['nombre_paciente'], $data['email_paciente'], $tel);
-        $stmt->execute();
-        $pacienteId = (int)$db->insert_id;
-    }
+    $pacienteId = checkPaciente();
+    $pac = fetchOne(query('SELECT nombre,email FROM pacientes WHERE id=?','i',[$pacienteId]));
+    $data['nombre_paciente'] = $pac['nombre'];
+    $data['email_paciente']  = $pac['email'];
 
     $medicoId = (int)$data['medico_id'];
     $pago = fetchOne(query('SELECT tarifa FROM medico_pago WHERE medico_id=?','i',[$medicoId]));

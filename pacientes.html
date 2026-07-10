@@ -215,6 +215,7 @@
 <nav>
   <a href="index.html?v=2" class="logo">Medic<em>Online</em></a>
   <div class="nav-right">
+    <a href="/paciente-portal.html" class="btn btn-outline" id="nav-cuenta">Iniciar sesión</a>
     <a href="registro-medico.html?v=2" class="btn btn-outline">Soy médico</a>
     <button class="btn btn-outline" onclick="abrirUnirse()" style="display:inline-flex;align-items:center;gap:6px">📹 Mi consulta</button>
     <button class="emerg-tab" onclick="toggleEmergSection()"><span class="emerg-tab-dot"></span>🚨 Emergencia</button>
@@ -312,6 +313,10 @@
 
 <script>
 const API = '/api.php';
+const PACIENTE_TOKEN = localStorage.getItem('paciente_token') || '';
+const PACIENTE_NOMBRE = localStorage.getItem('paciente_nombre') || '';
+function pacienteAuthHeaders(){ return {'Content-Type':'application/json','X-Paciente-Token': PACIENTE_TOKEN}; }
+(function(){ var el = document.getElementById('nav-cuenta'); if (el) { el.textContent = PACIENTE_TOKEN ? 'Mi cuenta' : 'Iniciar sesión'; el.href = '/paciente-portal.html'; } })();
 let DOCTORS = [];
 const AV_COLORS = ['av-green','av-blue','av-pink','av-amber','av-purple'];
 
@@ -446,6 +451,10 @@ function pickSlot(docId, slot, el) {
 }
 
 function openBooking(docId) {
+  if (!PACIENTE_TOKEN) {
+    if (confirm('Para agendar necesitas una cuenta. ¿Ir a iniciar sesión / registrarte?')) window.location.href = '/paciente-portal.html';
+    return;
+  }
   const d = DOCTORS.find(x => x.id === docId);
   const slot = selectedSlots[docId] || d.slots[0];
   document.getElementById('modal-content').innerHTML = `
@@ -473,31 +482,17 @@ function openBooking(docId) {
         <p style="font-size:12px;color:#444441;line-height:1.6">El pago es procesado de forma segura por <strong>MedicOnline</strong>. Una vez confirmado, recibirás los datos de contacto del médico para coordinar la consulta.</p>
       </div>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-        <div class="form-group">
-          <label>Nombre completo *</label>
-          <input type="text" placeholder="Tu nombre completo">
-        </div>
-        <div class="form-group">
-          <label>Edad</label>
-          <input type="number" placeholder="Ej. 35" min="0" max="120">
-        </div>
-        <div class="form-group">
-          <label>Correo electrónico *</label>
-          <input type="email" placeholder="tu@correo.com">
-        </div>
-        <div class="form-group">
-          <label>Teléfono</label>
-          <input type="tel" placeholder="+593 99 000 0000">
-        </div>
+      <div style="background:var(--green-light);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--green-dark);display:flex;align-items:center;gap:8px">
+        <span style="font-size:16px">👤</span>
+        <div>Agendas como: <strong>${PACIENTE_NOMBRE || 'tu cuenta'}</strong></div>
       </div>
       <div class="form-group">
         <label>Motivo de consulta *</label>
-        <textarea placeholder="Describe brevemente tus síntomas o el motivo de la consulta..."></textarea>
+        <textarea id="book-motivo" placeholder="Describe brevemente tus síntomas o el motivo de la consulta..."></textarea>
       </div>
       <div class="form-group">
         <label>¿Tienes alergias o tomas medicamentos?</label>
-        <input type="text" placeholder="Opcional — ayuda al médico a prepararse">
+        <input type="text" id="book-alergias" placeholder="Opcional — ayuda al médico a prepararse">
       </div>
 
       <!-- Método de pago -->
@@ -555,15 +550,11 @@ function openBooking(docId) {
 // Guardamos datos del step 1 en memoria para usar desde step 2
 let _bookingForm = {};
 function _captureForm(docId, slot) {
-  const inputs = document.querySelectorAll('#modal-content input, #modal-content textarea, #modal-content select');
   _bookingForm = {
     docId, slot,
-    nombre:   inputs[0]?.value.trim() || '',
-    edad:     inputs[1]?.value.trim() || '',
-    email:    inputs[2]?.value.trim() || '',
-    tel:      inputs[3]?.value.trim() || '',
-    motivo:   inputs[4]?.value.trim() || '',
-    alergias: inputs[5]?.value.trim() || '',
+    nombre: PACIENTE_NOMBRE, email: '', tel: '', edad: '',
+    motivo:   (document.getElementById('book-motivo')?.value || '').trim(),
+    alergias: (document.getElementById('book-alergias')?.value || '').trim(),
     metodo:   document.querySelector('input[name=pay]:checked')?.value || 'card',
   };
   return _bookingForm;
@@ -571,10 +562,6 @@ function _captureForm(docId, slot) {
 
 async function confirmBookingDesdeStep1(docId, slot) {
   const form = _captureForm(docId, slot);
-  if (!form.nombre || !form.email) {
-    alert('Por favor completa al menos tu nombre y correo electrónico.');
-    return;
-  }
   await _doConfirmBooking(docId, slot, form);
 }
 
@@ -614,7 +601,6 @@ async function validarCortesia(docId) {
 }
 async function confirmCortesia(docId, slot) {
   const form = _captureForm(docId, slot);
-  if (!form.nombre || !form.email) { alert('Por favor completa al menos tu nombre y correo electrónico.'); return; }
   if (!_cortesiaValida) { alert('Ingresa y valida un código de cortesía primero.'); return; }
   form.codigo = document.getElementById('cortesia-codigo').value.trim().toUpperCase();
   form.metodo = 'cortesia';
@@ -671,7 +657,6 @@ function showPaymentStep(docId, slot) {
 async function confirmBooking(docId, slot) {
   // Desde step 2: leer form del step 2 (solo datos de tarjeta son nuevos, el resto vino del step 1)
   const form = _bookingForm.docId === docId ? _bookingForm : _captureForm(docId, slot);
-  if (!form.nombre || !form.email) { alert('Por favor completa nombre y correo'); return; }
   await _doConfirmBooking(docId, slot, form);
 }
 
@@ -684,10 +669,9 @@ async function _doConfirmBooking(docId, slot, form) {
   try {
     const res  = await fetch(API + '?action=reservar', {
       method: 'POST',
-      headers: {'Content-Type':'application/json'},
+      headers: pacienteAuthHeaders(),
       body: JSON.stringify({
-        medico_id: d.id, nombre_paciente: form.nombre, email_paciente: form.email,
-        telefono_paciente: form.tel, edad: form.edad, horario: slot,
+        medico_id: d.id, horario: slot,
         motivo: form.motivo, alergias: form.alergias,
         metodo_pago: form.metodo || 'card',
         codigo: form.codigo || null
@@ -730,7 +714,7 @@ async function _doConfirmBooking(docId, slot, form) {
         <div style="background:#FFF8E6;border-radius:10px;padding:12px 14px;margin-bottom:16px;border:1px solid #F5C842">
           <div style="font-size:12px;color:#633806;line-height:1.6">
             📌 <strong>Guarda tu código de acceso:</strong> <span style="font-size:16px;font-weight:700;color:var(--green);font-family:monospace;letter-spacing:1px">${tokenAcceso}</span><br>
-            Lo necesitarás junto con tu correo <strong>${form.email}</strong> para acceder a tu sala desde el botón <em>"📹 Mi consulta"</em> en el menú.
+            Lo necesitarás junto con el correo de tu cuenta para acceder a tu sala desde el botón <em>"📹 Mi consulta"</em> en el menú.
           </div>
         </div>
         <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
@@ -860,6 +844,10 @@ async function loadEmergencias() {
 }
 
 function abrirReservaEmergencia(doc) {
+  if (!PACIENTE_TOKEN) {
+    if (confirm('Para agendar necesitas una cuenta. ¿Ir a iniciar sesión / registrarte?')) window.location.href = '/paciente-portal.html';
+    return;
+  }
   document.getElementById('modal-content').innerHTML = `
     <div class="emerg-modal-header">
       <h2>🚨 Consulta de emergencia</h2>
@@ -876,9 +864,9 @@ function abrirReservaEmergencia(doc) {
         <div style="font-size:11px;color:var(--muted)">USD</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-      <div class="form-group"><label>Nombre completo *</label><input type="text" id="em-nombre" placeholder="Tu nombre"></div>
-      <div class="form-group"><label>Correo electrónico *</label><input type="email" id="em-email" placeholder="tu@correo.com"></div>
+    <div style="background:#FEF2F2;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#7F1D1D;display:flex;align-items:center;gap:8px">
+      <span style="font-size:16px">👤</span>
+      <div>Consultas como: <strong>${PACIENTE_NOMBRE || 'tu cuenta'}</strong></div>
     </div>
     <div class="form-group" style="margin-bottom:12px"><label>Motivo de emergencia *</label><textarea id="em-motivo" rows="2" placeholder="Describe brevemente tu urgencia" style="resize:none"></textarea></div>
     <div class="modal-total" style="margin-bottom:16px">
@@ -892,16 +880,13 @@ function abrirReservaEmergencia(doc) {
 }
 
 async function confirmarEmergencia(medicoId, tarifa) {
-  const nombre = document.getElementById('em-nombre').value.trim();
-  const email  = document.getElementById('em-email').value.trim();
   const motivo = document.getElementById('em-motivo').value.trim();
-  if (!nombre || !email) { alert('Por favor completa nombre y correo'); return; }
   const btn = document.querySelector('#modal-content .confirm-btn');
   if (btn) { btn.disabled=true; btn.textContent='Conectando...'; }
   try {
     const res  = await fetch(API + '?action=reservar_emergencia', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({medico_id:medicoId, nombre_paciente:nombre, email_paciente:email, motivo:motivo||'Emergencia', metodo_pago:'test'})
+      method:'POST', headers: pacienteAuthHeaders(),
+      body: JSON.stringify({medico_id:medicoId, motivo:motivo||'Emergencia', metodo_pago:'card'})
     });
     const json = await res.json();
     if (!json.ok) { alert('Error: '+json.error); if(btn){btn.disabled=false;btn.textContent='🚨 Confirmar y conectar ahora';} return; }

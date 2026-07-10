@@ -92,6 +92,12 @@ CREATE TABLE `pacientes` (
   `telefono` varchar(30) DEFAULT NULL,
   `edad` tinyint(3) unsigned DEFAULT NULL,
   `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `password_hash` varchar(255) DEFAULT NULL,
+  `cedula` varchar(20) DEFAULT NULL,
+  `fecha_nacimiento` date DEFAULT NULL,
+  `genero` varchar(30) DEFAULT NULL,
+  `ciudad` varchar(80) DEFAULT NULL,
+  `estado` enum('activo','inactivo') NOT NULL DEFAULT 'activo',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
 ) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -187,6 +193,47 @@ CREATE TABLE `codigo_usos` (
   PRIMARY KEY (`id`),
   KEY `idx_codigo` (`codigo_id`),
   CONSTRAINT `fk_uso_codigo` FOREIGN KEY (`codigo_id`) REFERENCES `medico_codigos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `paciente_historial`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `paciente_historial` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `tipo_sangre` varchar(5) DEFAULT NULL,
+  `alergias` text DEFAULT NULL,
+  `enfermedades_cronicas` text DEFAULT NULL,
+  `medicamentos_actuales` text DEFAULT NULL,
+  `cirugias_previas` text DEFAULT NULL,
+  `fuma` enum('No','Sí','Ex-fumador') NOT NULL DEFAULT 'No',
+  `alcohol` enum('No','Ocasional','Frecuente') NOT NULL DEFAULT 'No',
+  `peso` decimal(5,2) DEFAULT NULL,
+  `estatura` smallint(5) unsigned DEFAULT NULL,
+  `antecedentes_familiares` text DEFAULT NULL,
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_paciente` (`paciente_id`),
+  CONSTRAINT `fk_hist_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `consulta_notas`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `consulta_notas` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `reserva_id` int(10) unsigned NOT NULL,
+  `medico_id` int(10) unsigned NOT NULL,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `diagnostico` text DEFAULT NULL,
+  `indicaciones` text DEFAULT NULL,
+  `notas` text DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  `actualizado_en` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_reserva` (`reserva_id`),
+  KEY `idx_paciente` (`paciente_id`),
+  CONSTRAINT `fk_nota_reserva` FOREIGN KEY (`reserva_id`) REFERENCES `reservas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;

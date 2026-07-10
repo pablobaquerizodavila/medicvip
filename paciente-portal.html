@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal del Paciente — MedicOnline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#0D7A5F;--green-light:#E6F5F1;--green-mid:#1D9E75;--green-dark:#094D3B;--ink:#1A1A18;--muted:#6B6B66;--border:rgba(26,26,24,.11);--cream:#FAF8F4;--white:#fff;--red:#E24B4A;--red-light:#FCEBEB;--amber:#EF9F27;--amber-light:#FEF3DC;--font:'DM Sans',sans-serif;--display:'DM Serif Display',serif;--radius:14px}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:var(--font);background:var(--cream);color:var(--ink);min-height:100vh}
+  .auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px}
+  .auth-card{background:var(--white);border-radius:20px;padding:48px 40px;width:100%;max-width:400px;box-shadow:0 20px 60px rgba(0,0,0,.08)}
+  .auth-logo{font-family:var(--display);font-size:22px;margin-bottom:4px}
+  .auth-logo em{color:var(--green-mid);font-style:normal}
+  .auth-sub{font-size:13px;color:var(--muted);margin-bottom:32px}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;padding:10px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:var(--font);font-size:14px;color:var(--ink);background:var(--white)}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--green-mid);box-shadow:0 0 0 3px rgba(29,158,117,.1)}
+  .field input:read-only{background:var(--cream);color:var(--muted);cursor:not-allowed}
+  .field textarea{resize:vertical;min-height:80px}
+  .input-wrap{position:relative}
+  .input-wrap input{padding-right:42px}
+  .eye-btn{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;display:flex;align-items:center;transition:color .2s}
+  .eye-btn:hover{color:var(--ink)}
+  .btn-primary{width:100%;padding:12px;background:var(--ink);color:var(--white);border:none;border-radius:100px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;transition:background .2s;margin-top:6px}
+  .btn-primary:hover{background:var(--green-mid)}
+  .auth-link{text-align:center;margin-top:16px;font-size:13px;color:var(--muted)}
+  .auth-link a{color:var(--green);cursor:pointer;text-decoration:none}
+  .auth-link a:hover{text-decoration:underline}
+  .msg{font-size:13px;padding:10px 14px;border-radius:10px;margin-top:12px;display:none}
+  .msg.error{background:var(--red-light);color:var(--red);display:block}
+  .msg.success{background:var(--green-light);color:var(--green-dark);display:block}
+  .app{display:none}
+  .app.show{display:flex;min-height:100vh}
+  .sidebar{width:230px;background:var(--ink);color:var(--white);flex-shrink:0;position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column}
+  .sidebar-top{padding:28px 20px 20px}
+  .sidebar-logo{font-family:var(--display);font-size:18px;margin-bottom:2px}
+  .sidebar-logo em{color:#5DCAA5;font-style:normal}
+  .sidebar-role{font-size:11px;color:rgba(255,255,255,.35);letter-spacing:.05em;text-transform:uppercase}
+  .sidebar-profile{display:flex;align-items:center;gap:12px;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:8px}
+  .profile-avatar{width:40px;height:40px;border-radius:50%;background:rgba(93,202,165,.2);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:14px;color:#5DCAA5;flex-shrink:0;overflow:hidden}
+  .profile-name{font-size:13px;font-weight:500;line-height:1.3}
+  .profile-spec{font-size:11px;color:rgba(255,255,255,.4)}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:11px 20px;font-size:14px;color:rgba(255,255,255,.6);cursor:pointer;transition:all .15s;border-left:3px solid transparent}
+  .nav-item:hover{background:rgba(255,255,255,.06);color:var(--white)}
+  .nav-item.active{background:rgba(93,202,165,.1);color:#5DCAA5;border-left-color:#5DCAA5}
+  .nav-icon{font-size:16px;width:20px;text-align:center}
+  .sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)}
+  .logout-btn{font-size:13px;color:rgba(255,255,255,.4);cursor:pointer;background:none;border:none;font-family:var(--font);display:flex;align-items:center;gap:7px;transition:color .2s}
+  .logout-btn:hover{color:var(--red)}
+  .main{flex:1;padding:36px;overflow-x:hidden;max-width:900px}
+  .page-title{font-family:var(--display);font-size:26px;margin-bottom:4px}
+  .page-sub{font-size:13px;color:var(--muted);margin-bottom:28px}
+  .section{display:none}
+  .section.active{display:block}
+  .card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px}
+  .card-title{font-size:14px;font-weight:500;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .full{grid-column:1/-1}
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 22px;border-radius:100px;font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--ink);transition:all .2s}
+  .btn:hover{background:var(--cream)}
+  .btn-green{background:var(--green-mid);color:var(--white);border-color:var(--green-mid)}
+  .btn-green:hover{background:var(--green-dark)}
+  .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
+  .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
+  .stat-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .stat-val{font-size:28px;font-weight:500}
+  .reservas-list{display:flex;flex-direction:column;gap:12px}
+  .reserva-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+  .badge{display:inline-flex;align-items:center;padding:3px 12px;border-radius:100px;font-size:12px;font-weight:500}
+  .badge-green{background:var(--green-light);color:var(--green)}
+  .badge-amber{background:var(--amber-light);color:#8B5A00}
+  .badge-red{background:var(--red-light);color:var(--red)}
+  .badge-blue{background:#E6F1FB;color:#185FA5}
+  .empty{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px}
+  .empty-icon{font-size:40px;margin-bottom:12px}
+  .loading{text-align:center;padding:40px;color:var(--muted)}
+  .subhead{font-size:13px;font-weight:500;color:var(--ink);margin:24px 0 12px;display:flex;align-items:center;gap:8px}
+  .subhead:first-child{margin-top:0}
+  .clinical-box{margin-top:10px;padding:12px 14px;background:var(--green-light);border-radius:10px;font-size:13px;color:var(--green-dark);line-height:1.5}
+  .clinical-box strong{color:var(--green-dark)}
+  .code-chip{display:inline-block;font-family:monospace;font-size:14px;font-weight:700;letter-spacing:1px;background:var(--cream);border:1px dashed var(--border);border-radius:8px;padding:4px 10px}
+  @media(max-width:768px){.app.show{flex-direction:column}.sidebar{width:100%;height:auto;position:static}.main{padding:20px}.grid2{grid-template-columns:1fr}.reserva-card{flex-direction:column}}
+</style>
+</head>
+<body>
+
+<div class="auth-screen" id="login-screen">
+  <div class="auth-card">
+    <div class="auth-logo">Medic<em>Online</em></div>
+    <p class="auth-sub">Portal del paciente — ingresa con tus credenciales</p>
+    <div class="field"><label>Correo electrónico</label><input type="email" id="login-email" placeholder="tu@correo.com" onkeydown="if(event.key==='Enter')doLogin()"></div>
+    <div class="field"><label>Contraseña</label>
+      <div class="input-wrap">
+        <input type="password" id="login-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()">
+        <button type="button" class="eye-btn" onclick="toggleEye('login-pass','eye1')">
+          <svg id="eye1" xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="doLogin()">Iniciar sesión</button>
+    <div id="login-msg" class="msg"></div>
+    <div class="auth-link"><a onclick="recuperar()">¿Olvidaste tu contraseña?</a></div>
+    <div class="auth-link">¿No tienes cuenta? <a href="/registro-paciente.html">Crear cuenta</a></div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-logo">Medic<em>Online</em></div>
+      <div class="sidebar-role">Portal del paciente</div>
+    </div>
+    <div class="sidebar-profile">
+      <div class="profile-avatar" id="sb-avatar"></div>
+      <div>
+        <div class="profile-name" id="sb-name">—</div>
+        <div class="profile-spec" id="sb-email">—</div>
+      </div>
+    </div>
+    <nav style="flex:1">
+      <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">🏠</span> Inicio</div>
+      <div class="nav-item" onclick="showSection('citas',this)"><span class="nav-icon">📅</span> Mis citas</div>
+      <div class="nav-item" onclick="showSection('historial',this)"><span class="nav-icon">📋</span> Mi historial médico</div>
+      <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="logout-btn" onclick="doLogout()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Cerrar sesión
+      </button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="section active" id="section-dashboard">
+      <div class="page-title" id="dash-saludo">Bienvenido</div>
+      <p class="page-sub">Resumen de tu actividad en MedicOnline</p>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Próximas citas</div><div class="stat-val" id="stat-proximas" style="color:var(--green-mid)">—</div></div>
+        <div class="stat-card"><div class="stat-label">Total de citas</div><div class="stat-val" id="stat-total">—</div></div>
+      </div>
+      <div class="card"><div style="font-size:13px;color:var(--muted);line-height:1.7">💡 <strong>Consejo:</strong> Mantén tu <strong>historial médico</strong> al día. La información que registres estará disponible para el médico que te atienda, para una consulta más segura.</div></div>
+    </div>
+
+    <div class="section" id="section-citas">
+      <div class="page-title">Mis citas</div>
+      <p class="page-sub">Tus consultas próximas y tu historial de citas</p>
+      <div class="subhead">🟢 Próximas</div>
+      <div id="proximas-container"><div class="loading">Cargando...</div></div>
+      <div class="subhead">🗂 Historial de citas</div>
+      <div id="historial-citas-container"><div class="loading">Cargando...</div></div>
+    </div>
+
+    <div class="section" id="section-historial">
+      <div class="page-title">Mi historial médico</div>
+      <p class="page-sub">Información clínica autoreportada — visible para el médico que te atienda</p>
+      <div class="card">
+        <div class="card-title">Datos clínicos</div>
+        <div class="grid2">
+          <div class="field"><label>Tipo de sangre</label>
+            <select id="h-tipo-sangre">
+              <option value="">No sé / Prefiero no decir</option>
+              <option>O+</option><option>O-</option><option>A+</option><option>A-</option>
+              <option>B+</option><option>B-</option><option>AB+</option><option>AB-</option>
+            </select>
+          </div>
+          <div class="field"><label>Fuma</label>
+            <select id="h-fuma"><option>No</option><option>Sí</option><option>Ex-fumador</option></select>
+          </div>
+          <div class="field"><label>Consumo de alcohol</label>
+            <select id="h-alcohol"><option>No</option><option>Ocasional</option><option>Frecuente</option></select>
+          </div>
+          <div class="field"><label>Peso (kg)</label><input type="number" id="h-peso" min="0" step="0.1" placeholder="Ej: 72.5"></div>
+          <div class="field"><label>Estatura (cm)</label><input type="number" id="h-estatura" min="0" step="1" placeholder="Ej: 170"></div>
+          <div class="field full"><label>Alergias</label><textarea id="h-alergias" placeholder="Medicamentos, alimentos, etc. (o «Ninguna»)"></textarea></div>
+          <div class="field full"><label>Enfermedades crónicas</label><textarea id="h-enfermedades" placeholder="Diabetes, hipertensión, asma, etc."></textarea></div>
+          <div class="field full"><label>Medicamentos actuales</label><textarea id="h-medicamentos" placeholder="Medicamentos que tomas actualmente"></textarea></div>
+          <div class="field full"><label>Cirugías previas</label><textarea id="h-cirugias" placeholder="Cirugías y año aproximado"></textarea></div>
+          <div class="field full"><label>Antecedentes familiares</label><textarea id="h-antecedentes" placeholder="Enfermedades relevantes en tu familia"></textarea></div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <div id="historial-msg" class="msg" style="margin:0;flex:1"></div>
+        <button class="btn btn-green" onclick="guardarHistorial()">Guardar historial</button>
+      </div>
+    </div>
+
+    <div class="section" id="section-perfil">
+      <div class="page-title">Mi perfil</div>
+      <p class="page-sub">Edita tus datos de contacto</p>
+      <div class="card">
+        <div class="card-title">Datos personales</div>
+        <div class="grid2">
+          <div class="field"><label>Nombre completo</label><input type="text" id="pf-nombre" readonly></div>
+          <div class="field"><label>Correo electrónico</label><input type="email" id="pf-email" readonly></div>
+          <div class="field"><label>Cédula</label><input type="text" id="pf-cedula" readonly></div>
+          <div class="field"><label>Teléfono</label><input type="tel" id="pf-telefono" placeholder="09xxxxxxxx"></div>
+          <div class="field"><label>Ciudad</label>
+            <select id="pf-ciudad"><option value="">—</option><option>Quito</option><option>Guayaquil</option><option>Cuenca</option><option>Ambato</option><option>Manta</option><option>Loja</option><option>Otra</option></select>
+          </div>
+          <div class="field"><label>Género</label>
+            <select id="pf-genero"><option value="">—</option><option>Masculino</option><option>Femenino</option><option>Otro</option><option>Prefiero no decir</option></select>
+          </div>
+          <div class="field"><label>Fecha de nacimiento</label><input type="date" id="pf-fecha-nac"></div>
+        </div>
+      </div>
+      <div class="form-actions">
+        <div id="perfil-msg" class="msg" style="margin:0;flex:1"></div>
+        <button class="btn btn-green" onclick="guardarPerfil()">Guardar cambios</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '/api.php';
+let pacienteData  = null;
+let pacienteToken = localStorage.getItem('paciente_token')  || '';
+let pacienteId    = localStorage.getItem('paciente_id')     || '';
+
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function toggleEye(inputId, svgId) {
+  const input = document.getElementById(inputId);
+  const show  = input.type === 'password';
+  input.type  = show ? 'text' : 'password';
+  document.getElementById(svgId).innerHTML = show
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+}
+
+function showMsg(id, text, type) {
+  const el = document.getElementById(id);
+  el.textContent = text; el.className = 'msg ' + type;
+  if (type === 'success') setTimeout(() => el.className = 'msg', 4000);
+}
+
+function authHeaders() {
+  return {'Content-Type':'application/json','X-Paciente-Token': pacienteToken};
+}
+
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-pass').value;
+  if (!email || !pass) { showMsg('login-msg','Ingresa tu correo y contraseña','error'); return; }
+  try {
+    const res  = await fetch(API + '?action=paciente_login', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password:pass})});
+    const json = await res.json();
+    if (json.ok) {
+      pacienteToken = json.data.token;
+      pacienteId    = json.data.paciente.id;
+      localStorage.setItem('paciente_token',  pacienteToken);
+      localStorage.setItem('paciente_id',     pacienteId);
+      localStorage.setItem('paciente_nombre', json.data.paciente.nombre || '');
+      location.reload();
+    } else { showMsg('login-msg', json.error || 'Credenciales incorrectas','error'); }
+  } catch(e) { showMsg('login-msg','No se pudo conectar con el servidor','error'); }
+}
+
+async function recuperar() {
+  const email = document.getElementById('login-email').value.trim();
+  if (!email) { showMsg('login-msg','Escribe tu correo arriba para recuperar tu contraseña','error'); return; }
+  try {
+    const res  = await fetch(API + '?action=paciente_recuperar', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email})});
+    const json = await res.json();
+    if (json.ok) {
+      let m = json.data.mensaje || 'Revisa tu correo.';
+      if (json.data.password_temp) m += '\n\nContraseña temporal: ' + json.data.password_temp + '\n(Cámbiala después de iniciar sesión.)';
+      alert(m);
+    } else { showMsg('login-msg', json.error || 'No se pudo procesar','error'); }
+  } catch(e) { showMsg('login-msg','No se pudo conectar con el servidor','error'); }
+}
+
+function doLogout() {
+  localStorage.removeItem('paciente_token');
+  localStorage.removeItem('paciente_id');
+  localStorage.removeItem('paciente_nombre');
+  pacienteToken=''; pacienteId=''; pacienteData=null;
+  location.reload();
+}
+
+function showSection(name, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('section-'+name).classList.add('active');
+  el.classList.add('active');
+}
+
+function setSelect(id, val) {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  if (val == null || val === '') { sel.value = ''; return; }
+  for (let opt of sel.options) { if (opt.value==val||opt.text==val) { sel.value=opt.value; return; } }
+}
+
+function populateSidebar(p) {
+  document.getElementById('sb-name').textContent  = p.nombre || '—';
+  document.getElementById('sb-email').textContent = p.email  || '—';
+  const av = document.getElementById('sb-avatar');
+  const parts = (p.nombre || '').trim().split(/\s+/);
+  const ini = ((parts[0]||'')[0]||'') + ((parts[1]||'')[0]||'');
+  av.textContent = ini.toUpperCase() || '👤';
+}
+
+async function loadPerfil() {
+  try {
+    const res  = await fetch(API + '?action=paciente_perfil', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) { doLogout(); return; }
+    pacienteData = json.data;
+    const p = pacienteData;
+
+    // Sidebar + saludo
+    populateSidebar(p);
+    document.getElementById('dash-saludo').textContent = 'Hola, ' + (p.nombre || '') + ' 👋';
+
+    // Reservas → próximas / historial
+    const reservas  = Array.isArray(p.reservas) ? p.reservas : [];
+    const proximas  = reservas.filter(r => ['agendada','confirmada'].includes(r.estado_consulta));
+    const pasadas   = reservas.filter(r => !['agendada','confirmada'].includes(r.estado_consulta));
+
+    document.getElementById('stat-proximas').textContent = proximas.length;
+    document.getElementById('stat-total').textContent    = reservas.length;
+
+    renderProximas(proximas);
+    renderHistorialCitas(pasadas);
+
+    // Historial médico
+    fillHistorial(p.historial || {});
+
+    // Perfil
+    document.getElementById('pf-nombre').value   = p.nombre  || '';
+    document.getElementById('pf-email').value    = p.email   || '';
+    document.getElementById('pf-cedula').value   = p.cedula  || '';
+    document.getElementById('pf-telefono').value = p.telefono|| '';
+    document.getElementById('pf-fecha-nac').value = p.fecha_nacimiento ? String(p.fecha_nacimiento).slice(0,10) : '';
+    setSelect('pf-ciudad', p.ciudad);
+    setSelect('pf-genero', p.genero);
+  } catch(e) {
+    document.getElementById('proximas-container').innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar tu información</div>';
+  }
+}
+
+function renderProximas(list) {
+  const c = document.getElementById('proximas-container');
+  if (!list.length) { c.innerHTML = '<div class="empty"><div class="empty-icon">📅</div>No tienes citas próximas</div>'; return; }
+  c.innerHTML = '<div class="reservas-list">' + list.map(r => {
+    const salaHtml = r.sala_video
+      ? `<div style="margin-top:8px">
+           <a class="btn btn-green" style="font-size:12px;padding:7px 14px" href="https://meet.jit.si/${esc(r.sala_video)}" target="_blank" rel="noopener">📹 Entrar a la videollamada</a>
+           ${r.token_acceso ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">Código de acceso: <span class="code-chip">${esc(r.token_acceso)}</span></div>` : ''}
+         </div>`
+      : '';
+    return `
+    <div class="reserva-card">
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:500;margin-bottom:4px">🩺 ${esc(r.medico || 'Médico')}</div>
+        ${r.especialidad ? `<div style="font-size:13px;color:var(--muted)">${esc(r.especialidad)}</div>` : ''}
+        <div style="font-size:13px;color:var(--muted)">📅 ${esc(r.horario || '—')}</div>
+        ${r.motivo ? `<div style="font-size:13px;color:var(--muted);margin-top:2px">📋 ${esc(r.motivo)}</div>` : ''}
+        ${salaHtml}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <span class="badge ${r.estado_consulta==='confirmada'?'badge-green':'badge-blue'}">${esc(r.estado_consulta||'')}</span>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function renderHistorialCitas(list) {
+  const c = document.getElementById('historial-citas-container');
+  if (!list.length) { c.innerHTML = '<div class="empty"><div class="empty-icon">🗂</div>Aún no tienes citas en tu historial</div>'; return; }
+  c.innerHTML = '<div class="reservas-list">' + list.map(r => {
+    const badgeClass = r.estado_consulta==='no_realizada' || r.estado_consulta==='cancelada' ? 'badge-red' : 'badge-blue';
+    const clinico = (r.diagnostico || r.indicaciones)
+      ? `<div class="clinical-box">
+           ${r.diagnostico  ? `<div><strong>Diagnóstico:</strong> ${esc(r.diagnostico)}</div>` : ''}
+           ${r.indicaciones ? `<div style="margin-top:4px"><strong>Indicaciones:</strong> ${esc(r.indicaciones)}</div>` : ''}
+         </div>`
+      : '';
+    return `
+    <div class="reserva-card">
+      <div style="flex:1">
+        <div style="font-size:15px;font-weight:500;margin-bottom:4px">🩺 ${esc(r.medico || 'Médico')}</div>
+        ${r.especialidad ? `<div style="font-size:13px;color:var(--muted)">${esc(r.especialidad)}</div>` : ''}
+        <div style="font-size:13px;color:var(--muted)">📅 ${esc(r.horario || '—')}</div>
+        ${clinico}
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+        <span class="badge ${badgeClass}">${esc(r.estado_consulta||'')}</span>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function fillHistorial(h) {
+  document.getElementById('h-peso').value         = h.peso     != null ? h.peso     : '';
+  document.getElementById('h-estatura').value     = h.estatura != null ? h.estatura : '';
+  document.getElementById('h-alergias').value        = h.alergias                || '';
+  document.getElementById('h-enfermedades').value    = h.enfermedades_cronicas   || '';
+  document.getElementById('h-medicamentos').value    = h.medicamentos_actuales   || '';
+  document.getElementById('h-cirugias').value        = h.cirugias_previas        || '';
+  document.getElementById('h-antecedentes').value    = h.antecedentes_familiares || '';
+  setSelect('h-tipo-sangre', h.tipo_sangre);
+  setSelect('h-fuma',        h.fuma    || 'No');
+  setSelect('h-alcohol',     h.alcohol || 'No');
+}
+
+async function guardarHistorial() {
+  const payload = {
+    tipo_sangre:             document.getElementById('h-tipo-sangre').value,
+    alergias:                document.getElementById('h-alergias').value,
+    enfermedades_cronicas:   document.getElementById('h-enfermedades').value,
+    medicamentos_actuales:   document.getElementById('h-medicamentos').value,
+    cirugias_previas:        document.getElementById('h-cirugias').value,
+    fuma:                    document.getElementById('h-fuma').value,
+    alcohol:                 document.getElementById('h-alcohol').value,
+    peso:                    document.getElementById('h-peso').value,
+    estatura:                document.getElementById('h-estatura').value,
+    antecedentes_familiares: document.getElementById('h-antecedentes').value,
+  };
+  try {
+    const res  = await fetch(API + '?action=paciente_historial_actualizar', {method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});
+    const json = await res.json();
+    if (json.ok) { showMsg('historial-msg','✅ Historial guardado correctamente','success'); loadPerfil(); }
+    else { showMsg('historial-msg', json.error || 'Error al guardar','error'); }
+  } catch(e) { showMsg('historial-msg','No se pudo conectar','error'); }
+}
+
+async function guardarPerfil() {
+  const payload = {
+    telefono:         document.getElementById('pf-telefono').value,
+    ciudad:           document.getElementById('pf-ciudad').value,
+    genero:           document.getElementById('pf-genero').value,
+    fecha_nacimiento: document.getElementById('pf-fecha-nac').value || null,
+  };
+  try {
+    const res  = await fetch(API + '?action=paciente_actualizar', {method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});
+    const json = await res.json();
+    if (json.ok) { showMsg('perfil-msg','✅ Perfil actualizado correctamente','success'); if (pacienteData) Object.assign(pacienteData, payload); }
+    else { showMsg('perfil-msg', json.error || 'Error al guardar','error'); }
+  } catch(e) { showMsg('perfil-msg','No se pudo conectar','error'); }
+}
+
+// Al cargar: si hay token → dashboard; si no → login
+if (pacienteToken && pacienteId) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+  loadPerfil();
+} else {
+  document.getElementById('login-screen').style.display = 'flex';
+}
+</script>
+
+</body>
+</html>

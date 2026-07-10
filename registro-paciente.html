@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crear cuenta de paciente — MedicOnline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #0D7A5F; --green-light: #E6F5F1; --green-mid: #1D9E75;
+    --green-dark: #094D3B; --cream: #FAF8F4; --ink: #1A1A18;
+    --muted: #6B6B66; --border: rgba(26,26,24,.12); --white: #fff;
+    --radius: 14px; --error: #E24B4A; --error-light: #FCEBEB;
+    --font-display: 'DM Serif Display', serif; --font-body: 'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-body); background: var(--cream); color: var(--ink); min-height: 100vh; }
+
+  /* NAV */
+  .nav {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 18px 40px; background: var(--white);
+    border-bottom: 1.5px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  .nav-logo { font-family: var(--font-display); font-size: 22px; color: var(--ink); text-decoration: none; }
+  .nav-logo em { color: var(--green-mid); font-style: normal; }
+  .nav-link { font-size: 14px; color: var(--muted); text-decoration: none; transition: color .2s; }
+  .nav-link a, .nav-link { }
+  .nav-link strong { color: var(--green); font-weight: 500; }
+  .nav-link:hover strong { color: var(--green-dark); }
+
+  /* PAGE */
+  .page { max-width: 760px; margin: 0 auto; padding: 48px 24px 80px; }
+  .form-header { margin-bottom: 32px; }
+  .form-title { font-family: var(--font-display); font-size: 34px; line-height: 1.15; margin-bottom: 8px; }
+  .form-title em { color: var(--green-mid); font-style: italic; }
+  .form-sub { font-size: 15px; color: var(--muted); line-height: 1.6; max-width: 560px; }
+
+  /* CARD / SECTION */
+  .card {
+    background: var(--white); border: 1.5px solid var(--border);
+    border-radius: var(--radius); padding: 28px 28px 12px; margin-bottom: 24px;
+  }
+  .section-label { font-size: 12px; color: var(--green-mid); font-weight: 500; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+  .section-title { font-family: var(--font-display); font-size: 22px; margin-bottom: 4px; }
+  .section-desc { font-size: 13px; color: var(--muted); margin-bottom: 22px; line-height: 1.6; }
+
+  /* FORM ELEMENTS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+  .form-group.full { grid-column: 1/-1; }
+  label { font-size: 12px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]), select, textarea {
+    width: 100%; padding: 11px 14px; border: 1.5px solid var(--border);
+    border-radius: 10px; font-family: var(--font-body); font-size: 14px;
+    background: var(--white); color: var(--ink); transition: border-color .2s, box-shadow .2s;
+    appearance: none; -webkit-appearance: none;
+  }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]):focus, select:focus, textarea:focus { outline: none; border-color: var(--green-mid); box-shadow: 0 0 0 3px rgba(29,158,117,.1); }
+  input:not([type=file]):not([type=checkbox]):not([type=radio]).error, select.error, textarea.error { border-color: var(--error); }
+  textarea { resize: vertical; min-height: 80px; }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236B6B66' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; padding-right: 36px; }
+  .field-hint { font-size: 12px; color: var(--muted); }
+
+  /* BUTTON */
+  .form-actions { margin-top: 8px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 36px; border-radius: 100px; font-family: var(--font-body); font-size: 15px; font-weight: 500; cursor: pointer; transition: all .2s; border: 1.5px solid transparent; text-decoration: none; }
+  .btn-submit { background: var(--ink); color: var(--white); border-color: var(--ink); width: 100%; }
+  .btn-submit:hover { background: #333; }
+  .btn-submit:disabled { opacity: .6; cursor: not-allowed; }
+
+  /* STATUS MESSAGE */
+  .status-msg { display: none; font-size: 14px; padding: 12px 16px; border-radius: 10px; margin-bottom: 18px; line-height: 1.5; }
+  .status-msg.error { display: block; background: var(--error-light); color: var(--error); border: 1px solid rgba(226,75,74,.25); }
+  .status-msg.info { display: block; background: var(--green-light); color: var(--green-dark); border: 1px solid rgba(29,158,117,.2); }
+
+  .privacy-note { display: flex; gap: 10px; align-items: flex-start; background: var(--green-light); border-radius: 12px; padding: 14px 18px; margin-bottom: 24px; }
+  .privacy-note .ico { font-size: 16px; flex-shrink: 0; }
+  .privacy-note p { font-size: 13px; color: var(--green-dark); line-height: 1.6; }
+
+  @media (max-width: 720px) {
+    .nav { padding: 16px 20px; }
+    .nav-link { font-size: 13px; }
+    .page { padding: 32px 18px 60px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .card { padding: 22px 20px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <a href="/index.html" class="nav-logo">Medic<em>Online</em></a>
+  <a href="/paciente-portal.html" class="nav-link">¿Ya tienes cuenta? <strong>Inicia sesión</strong></a>
+</nav>
+
+<main class="page">
+  <div class="form-header">
+    <h1 class="form-title">Crear cuenta de <em>paciente</em></h1>
+    <p class="form-sub">Regístrate para agendar consultas y mantener tu historial médico en un solo lugar. Toma menos de 3 minutos.</p>
+  </div>
+
+  <div class="privacy-note">
+    <span class="ico">🔒</span>
+    <p>Tu información médica es confidencial y solo se comparte con los médicos que tú elijas para tus consultas.</p>
+  </div>
+
+  <div id="status" class="status-msg"></div>
+
+  <!-- DATOS DE LA CUENTA -->
+  <section class="card">
+    <div class="section-label">Paso 1</div>
+    <h2 class="section-title">Datos de la cuenta</h2>
+    <p class="section-desc">Con estos datos crearemos tu cuenta y podrás iniciar sesión para agendar tus consultas.</p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="nombres">Nombres *</label>
+        <input type="text" id="nombres" placeholder="Ej. María José" required>
+      </div>
+      <div class="form-group">
+        <label for="apellidos">Apellidos *</label>
+        <input type="text" id="apellidos" placeholder="Ej. García López" required>
+      </div>
+      <div class="form-group">
+        <label for="cedula">Cédula</label>
+        <input type="text" id="cedula" placeholder="Ej. 1712345678">
+      </div>
+      <div class="form-group">
+        <label for="fnac">Fecha de nacimiento *</label>
+        <input type="date" id="fnac" required>
+      </div>
+      <div class="form-group">
+        <label for="genero">Género</label>
+        <select id="genero">
+          <option value="">Selecciona...</option>
+          <option>Masculino</option>
+          <option>Femenino</option>
+          <option>Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="telefono">Teléfono *</label>
+        <input type="tel" id="telefono" placeholder="+593 99 000 0000" required>
+      </div>
+      <div class="form-group">
+        <label for="email">Correo electrónico *</label>
+        <input type="email" id="email" placeholder="tucorreo@correo.com" required>
+      </div>
+      <div class="form-group">
+        <label for="ciudad">Ciudad</label>
+        <input type="text" id="ciudad" placeholder="Ej. Guayaquil">
+      </div>
+      <div class="form-group">
+        <label for="pass">Contraseña *</label>
+        <input type="password" id="pass" placeholder="Mínimo 8 caracteres" minlength="8" required>
+        <span class="field-hint">Mínimo 8 caracteres.</span>
+      </div>
+      <div class="form-group">
+        <label for="pass2">Confirmar contraseña *</label>
+        <input type="password" id="pass2" placeholder="Repite tu contraseña" minlength="8" required>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORIAL MÉDICO -->
+  <section class="card">
+    <div class="section-label">Paso 2</div>
+    <h2 class="section-title">Historial médico</h2>
+    <p class="section-desc">Esta información ayuda a los médicos a atenderte mejor. Todos los campos son opcionales, pero mientras más completo, mejor será tu atención.</p>
+
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="tipo_sangre">Tipo de sangre</label>
+        <select id="tipo_sangre">
+          <option value="">Selecciona...</option>
+          <option>A+</option>
+          <option>A-</option>
+          <option>B+</option>
+          <option>B-</option>
+          <option>AB+</option>
+          <option>AB-</option>
+          <option>O+</option>
+          <option>O-</option>
+          <option>No sé</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="fuma">Fuma</label>
+        <select id="fuma">
+          <option>No</option>
+          <option>Sí</option>
+          <option>Ex-fumador</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="alcohol">Consumo de alcohol</label>
+        <select id="alcohol">
+          <option>No</option>
+          <option>Ocasional</option>
+          <option>Frecuente</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="peso">Peso (kg)</label>
+        <input type="number" id="peso" placeholder="Ej. 70" min="0" step="0.1">
+      </div>
+      <div class="form-group">
+        <label for="estatura">Estatura (cm)</label>
+        <input type="number" id="estatura" placeholder="Ej. 170" min="0" step="0.1">
+      </div>
+      <div class="form-group full">
+        <label for="alergias">Alergias</label>
+        <textarea id="alergias" placeholder="Penicilina, mariscos, polen, etc."></textarea>
+      </div>
+      <div class="form-group full">
+        <label for="enfermedades">Enfermedades crónicas</label>
+        <textarea id="enfermedades" placeholder="Diabetes, hipertensión, asma, etc."></textarea>
+      </div>
+      <div class="form-group full">
+        <label for="medicamentos">Medicamentos actuales</label>
+        <textarea id="medicamentos" placeholder="Nombre y dosis de los medicamentos que tomas actualmente."></textarea>
+      </div>
+      <div class="form-group full">
+        <label for="cirugias">Cirugías previas</label>
+        <textarea id="cirugias" placeholder="Cirugías u operaciones que te hayan realizado, con año aproximado."></textarea>
+      </div>
+      <div class="form-group full">
+        <label for="antecedentes">Antecedentes familiares</label>
+        <textarea id="antecedentes" placeholder="Enfermedades importantes en padres, hermanos o abuelos."></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <button class="btn btn-submit" id="btn-registrar" onclick="registrar()">Crear cuenta</button>
+  </div>
+</main>
+
+<script>
+const API = '/api.php';
+async function registrar() {
+  const g = id => (document.getElementById(id)?.value || '').trim();
+  if (g('pass') !== g('pass2')) { alert('Las contraseñas no coinciden'); return; }
+  if (g('pass').length < 8) { alert('La contraseña debe tener mínimo 8 caracteres'); return; }
+  if (!g('nombres') || !g('email')) { alert('Nombres y correo son obligatorios'); return; }
+  const payload = {
+    nombres:g('nombres'), apellidos:g('apellidos'), cedula:g('cedula'), fecha_nacimiento:g('fnac'),
+    genero:g('genero'), telefono:g('telefono'), email:g('email'), ciudad:g('ciudad'), password:g('pass'),
+    tipo_sangre:g('tipo_sangre'), alergias:g('alergias'), enfermedades_cronicas:g('enfermedades'),
+    medicamentos_actuales:g('medicamentos'), cirugias_previas:g('cirugias'), fuma:g('fuma'),
+    alcohol:g('alcohol'), peso:g('peso'), estatura:g('estatura'), antecedentes_familiares:g('antecedentes')
+  };
+  const btn = document.getElementById('btn-registrar'); btn.disabled = true; btn.textContent = 'Creando...';
+  try {
+    const res = await fetch(API + '?action=paciente_registro', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); return; }
+    localStorage.setItem('paciente_token', json.data.token);
+    localStorage.setItem('paciente_id', json.data.paciente.id);
+    localStorage.setItem('paciente_nombre', json.data.paciente.nombre);
+    window.location.href = '/paciente-portal.html';
+  } catch(e) { alert('Error de conexión'); }
+  finally { btn.disabled = false; btn.textContent = 'Crear cuenta'; }
+}
+</script>
+</body>
+</html>

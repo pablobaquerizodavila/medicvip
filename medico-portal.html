@@ -704,6 +704,8 @@ async function loadReservas() {
           <span class="badge ${r.estado_consulta==='confirmada'?'badge-green':r.estado_consulta==='no_realizada'?'badge-red':r.estado_consulta==='cancelada'?'badge-red':'badge-blue'}">${r.estado_consulta}</span>
           ${puedeCon?`<button class="btn btn-green" style="font-size:12px;padding:7px 14px" onclick="confirmarConsulta(${r.id})">✓ Confirmar consulta</button>`:''}
           ${r.sala_video ? puedeIniciarVideo(r.horario) ? `<button class="btn-video" onclick="iniciarVideo('${r.sala_video}','${(r.paciente||'').replace(/'/g,'')}')" title="Abrir videollamada">📹 Iniciar videollamada</button>` : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 8px;border:1px dashed var(--border);border-radius:8px;max-width:140px">📹 Video disponible<br>${proximoHorario(r.horario)}</div>` : ''}
+          <button class="btn" style="font-size:12px;padding:7px 14px" onclick="verHistorialPaciente(${r.paciente_id})">🩺 Ver historial</button>
+          <button class="btn" style="font-size:12px;padding:7px 14px" onclick="abrirNota(${r.id})">📝 Nota clínica</button>
         </div>
       </div>`}).join('')+'</div>';
   } catch(e) { c.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar</div>'; }
@@ -726,6 +728,62 @@ async function confirmarConsulta(reservaId) {
     }
   } catch(e) { alert('No se pudo conectar con el servidor'); }
 }
+
+// ---- Historial clínico y notas ----
+async function verHistorialPaciente(pid) {
+  try {
+    const res = await fetch(API + '?action=medico_ver_historial', {method:'POST', headers: authHeaders(), body: JSON.stringify({paciente_id: pid})});
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); return; }
+    const d = json.data, h = d.historial || {};
+    const campo = (l,v) => v ? `<div style="margin-bottom:6px"><b>${l}:</b> ${v}</div>` : '';
+    const hist = h && Object.keys(h).length ? (
+      campo('Tipo de sangre', h.tipo_sangre) + campo('Alergias', h.alergias) + campo('Enfermedades crónicas', h.enfermedades_cronicas) +
+      campo('Medicamentos actuales', h.medicamentos_actuales) + campo('Cirugías previas', h.cirugias_previas) +
+      campo('Fuma', h.fuma) + campo('Alcohol', h.alcohol) + campo('Peso', h.peso ? h.peso+' kg' : '') +
+      campo('Estatura', h.estatura ? h.estatura+' cm' : '') + campo('Antecedentes familiares', h.antecedentes_familiares)
+    ) : '<em>Sin historial médico registrado.</em>';
+    const notas = (d.notas_previas||[]).length ? d.notas_previas.map(n =>
+      `<div style="border-top:1px solid var(--border);padding:8px 0;font-size:13px"><b>${n.horario||n.creado_en||''}</b> — ${n.medico||''}<br>Dx: ${n.diagnostico||'—'}<br>Indicaciones: ${n.indicaciones||'—'}${n.notas?'<br>Notas: '+n.notas:''}</div>`).join('') : '<em>Sin notas previas.</em>';
+    mostrarModalPortal(`Historial de ${d.nombre||'paciente'}`, `<div style="font-size:14px">${hist}</div><h4 style="margin:16px 0 8px">Notas de consultas previas</h4>${notas}`);
+  } catch(e) { alert('Error de conexión'); }
+}
+
+async function abrirNota(reservaId) {
+  mostrarModalPortal('Nota clínica', `
+    <label style="font-size:13px;color:var(--muted)">Diagnóstico</label>
+    <textarea id="n-diag" style="width:100%;min-height:60px;margin-bottom:10px"></textarea>
+    <label style="font-size:13px;color:var(--muted)">Indicaciones / receta</label>
+    <textarea id="n-ind" style="width:100%;min-height:60px;margin-bottom:10px"></textarea>
+    <label style="font-size:13px;color:var(--muted)">Notas</label>
+    <textarea id="n-notas" style="width:100%;min-height:60px;margin-bottom:12px"></textarea>
+    <button onclick="guardarNota(${reservaId})" style="background:#1d9e75;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer">Guardar nota</button>`);
+}
+
+async function guardarNota(reservaId) {
+  const payload = {reserva_id: reservaId, diagnostico: document.getElementById('n-diag').value, indicaciones: document.getElementById('n-ind').value, notas: document.getElementById('n-notas').value};
+  try {
+    const res = await fetch(API + '?action=medico_guardar_nota', {method:'POST', headers: authHeaders(), body: JSON.stringify(payload)});
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); return; }
+    cerrarModalPortal(); alert('Nota clínica guardada');
+  } catch(e) { alert('Error de conexión'); }
+}
+
+function mostrarModalPortal(titulo, htmlInterior) {
+  let ov = document.getElementById('portal-modal');
+  if (!ov) {
+    ov = document.createElement('div'); ov.id = 'portal-modal';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px';
+    ov.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:85vh;overflow:auto;padding:24px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><h3 id="portal-modal-title" style="margin:0"></h3><button onclick="cerrarModalPortal()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)">×</button></div><div id="portal-modal-body"></div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', e => { if (e.target === ov) cerrarModalPortal(); });
+  }
+  document.getElementById('portal-modal-title').textContent = titulo;
+  document.getElementById('portal-modal-body').innerHTML = htmlInterior;
+  ov.style.display = 'flex';
+}
+function cerrarModalPortal(){ const ov=document.getElementById('portal-modal'); if(ov) ov.style.display='none'; }
 
 function checkStrength(val) {
   let s=0;
