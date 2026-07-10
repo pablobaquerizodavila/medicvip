@@ -251,10 +251,15 @@ En `crearReserva`, reemplazar TODO el bloque que va desde `$pago = fetchOne(quer
     if (!$reservaId) { if ($esCortesia) $db->rollback(); throw new Exception('insert_id=0 — revisar permisos INSERT en tabla reservas'); }
 
     if ($esCortesia) {
-        $u = $db->prepare('UPDATE medico_codigos SET usos_count=usos_count+1, estado=IF(usos_count+1>=usos_max,"agotado","activo") WHERE id=?');
-        $u->bind_param('i', $codigoId); $u->execute();
+        // estado se evalúa ANTES de incrementar (MariaDB aplica los SET de izq. a der.)
+        $u = $db->prepare('UPDATE medico_codigos SET estado=IF(usos_count+1>=usos_max,"agotado","activo"), usos_count=usos_count+1 WHERE id=?');
+        if (!$u) { $db->rollback(); throw new Exception('Prepare update codigo: '.$db->error); }
+        $u->bind_param('i', $codigoId);
+        if (!$u->execute()) { $db->rollback(); throw new Exception('No se pudo actualizar el código de cortesía.'); }
         $cu = $db->prepare('INSERT INTO codigo_usos (codigo_id,reserva_id,paciente_email) VALUES (?,?,?)');
-        $cu->bind_param('iis', $codigoId, $reservaId, $data['email_paciente']); $cu->execute();
+        if (!$cu) { $db->rollback(); throw new Exception('Prepare codigo_usos: '.$db->error); }
+        $cu->bind_param('iis', $codigoId, $reservaId, $data['email_paciente']);
+        if (!$cu->execute()) { $db->rollback(); throw new Exception('No se pudo registrar el canje del código.'); }
         $db->commit();
     } else {
         $ins = $db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"custodia",?,"Pago recibido en custodia")');

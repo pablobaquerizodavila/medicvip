@@ -162,6 +162,7 @@
       <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Mis reservas</div>
       <div class="nav-item" onclick="showSection('pagos',this); loadPagos()"><span class="nav-icon">💰</span> Mis pagos</div>
       <div class="nav-item" onclick="showSection('resenas',this); loadMedicoResenas()"><span class="nav-icon">⭐</span> Mis reseñas</div>
+      <div class="nav-item" onclick="showSection('codigos',this); loadCodigos()"><span class="nav-icon">🎗️</span> Códigos de cortesía</div>
       <div class="nav-item" onclick="showSection('seguridad',this)"><span class="nav-icon">🔒</span> Seguridad</div>
     </nav>
     <div class="sidebar-footer">
@@ -303,6 +304,21 @@
       </div>
       <div id="resenas-list-medico"><div class="loading">Cargando...</div></div>
     </div>
+
+    <section id="section-codigos" class="section">
+      <div class="page-title">🎗️ Códigos de cortesía</div>
+      <p class="page-sub">Genera códigos para que pacientes agenden una consulta gratis contigo. Compártelos con quien quieras beneficiar.</p>
+      <div style="background:var(--white);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:24px">
+        <div style="font-weight:600;margin-bottom:14px">Generar nuevo código</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;align-items:end">
+          <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Nº de usos</label><input type="number" id="cod-usos" min="1" max="100" value="1" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></div>
+          <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Nota (opcional)</label><input type="text" id="cod-nota" placeholder="Ej: Para Juan Pérez" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></div>
+          <div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Vence (opcional)</label><input type="date" id="cod-expira" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;box-sizing:border-box"></div>
+          <button id="cod-generar-btn" onclick="generarCodigo()" style="background:#1d9e75;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:500">Generar código</button>
+        </div>
+      </div>
+      <div id="codigos-lista"></div>
+    </section>
 
     <div class="section" id="section-seguridad">
       <div class="page-title">Seguridad</div>
@@ -525,6 +541,69 @@ async function loadPagos() {
   } catch(e) {
     tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:#C0392B">Error de conexión</td></tr>';
   }
+}
+
+async function loadCodigos() {
+  const cont = document.getElementById('codigos-lista');
+  cont.innerHTML = '<p style="color:var(--muted);font-size:14px">Cargando...</p>';
+  try {
+    const res = await fetch(API + '?action=medico_codigos', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) { cont.innerHTML = '<p style="color:#C0392B;font-size:14px">No se pudieron cargar los códigos.</p>'; return; }
+    if (!json.data.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:14px">Aún no has generado códigos.</p>'; return; }
+    const hoy = new Date().toISOString().slice(0,10);
+    cont.innerHTML = json.data.map(c => {
+      const vencido = c.expira_en && c.expira_en < hoy && c.estado==='activo';
+      const estado = c.estado==='revocado' ? 'Revocado' : c.estado==='agotado' ? 'Agotado' : vencido ? 'Vencido' : 'Activo';
+      const color = estado==='Activo' ? '#1d9e75' : (estado==='Agotado'||estado==='Vencido') ? '#b8860b' : '#C0392B';
+      const canjes = (c.canjes||[]).map(u => `<div style="font-size:12px;color:var(--muted)">• ${u.paciente_email||'—'} — ${u.usado_en}</div>`).join('') || '<div style="font-size:12px;color:var(--muted)">Sin canjes aún</div>';
+      const revocable = c.estado==='activo';
+      return `<div style="border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;background:var(--white)">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <span style="font-family:monospace;font-size:16px;font-weight:700;letter-spacing:1px">${c.codigo}</span>
+          <button onclick="copiarCodigo('${c.codigo}')" style="background:var(--green-light);border:none;color:var(--green);font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer">Copiar</button>
+          <span style="background:${color}22;color:${color};font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px">${estado}</span>
+          <span style="font-size:13px;color:var(--muted);margin-left:auto">${c.usos_count}/${c.usos_max} usados</span>
+          ${revocable ? `<button onclick="revocarCodigo(${c.id})" style="background:none;border:1px solid #C0392B;color:#C0392B;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer">Revocar</button>` : ''}
+        </div>
+        ${c.nota ? `<div style="font-size:13px;margin-top:8px">📝 ${c.nota}</div>` : ''}
+        ${c.expira_en ? `<div style="font-size:12px;color:var(--muted);margin-top:4px">Vence: ${c.expira_en}</div>` : ''}
+        <div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">${canjes}</div>
+      </div>`;
+    }).join('');
+  } catch(e) { cont.innerHTML = '<p style="color:#C0392B;font-size:14px">Error de conexión.</p>'; }
+}
+async function generarCodigo() {
+  const usos = parseInt(document.getElementById('cod-usos').value) || 1;
+  const nota = document.getElementById('cod-nota').value.trim();
+  const expira = document.getElementById('cod-expira').value || null;
+  const btn = document.getElementById('cod-generar-btn');
+  btn.disabled = true; btn.textContent = 'Generando...';
+  try {
+    const res = await fetch(API + '?action=medico_codigo_crear', {
+      method:'POST', headers: authHeaders(),
+      body: JSON.stringify({usos_max: usos, nota, expira_en: expira})
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); return; }
+    document.getElementById('cod-nota').value=''; document.getElementById('cod-expira').value=''; document.getElementById('cod-usos').value='1';
+    loadCodigos();
+  } catch(e) { alert('Error de conexión'); }
+  finally { btn.disabled=false; btn.textContent='Generar código'; }
+}
+async function revocarCodigo(id) {
+  if (!confirm('¿Revocar este código? No podrá usarse más.')) return;
+  try {
+    const res = await fetch(API + '?action=medico_codigo_revocar', {
+      method:'POST', headers: authHeaders(), body: JSON.stringify({codigo_id: id})
+    });
+    const json = await res.json();
+    if (!json.ok) { alert('Error: ' + json.error); return; }
+    loadCodigos();
+  } catch(e) { alert('Error de conexión'); }
+}
+function copiarCodigo(codigo) {
+  if (navigator.clipboard) navigator.clipboard.writeText(codigo).then(()=>{}, ()=>{});
 }
 
 async function toggleEmergencia() {

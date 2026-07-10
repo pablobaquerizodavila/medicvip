@@ -173,14 +173,6 @@
   .unirse-overlay.open{display:flex}
   .unirse-box{background:#fff;border-radius:20px;padding:32px;width:100%;max-width:440px;animation:slideUp .3s ease}
 
-  /* TEST MODE */
-  .test-banner{display:flex;align-items:center;gap:8px;background:#FFF8E6;border:1.5px solid #F5C842;border-radius:10px;padding:10px 14px;margin-bottom:16px}
-  .test-badge{background:#F5C842;color:#633806;font-size:10px;font-weight:700;padding:3px 8px;border-radius:100px;letter-spacing:.05em;flex-shrink:0}
-  .btn-test{width:100%;padding:14px;background:#F5C842;color:#1A1A18;border:none;border-radius:100px;font-family:var(--font-body);font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:8px}
-  .btn-test:hover{background:#E6B800;transform:translateY(-1px)}
-  .btn-skip{width:100%;padding:11px;background:transparent;color:var(--muted);border:1.5px dashed var(--border);border-radius:100px;font-family:var(--font-body);font-size:13px;cursor:pointer;margin-top:8px;transition:all .2s}
-  .btn-skip:hover{border-color:var(--green-mid);color:var(--green)}
-
   /* EMERGENCIAS */
   .emerg-tab{display:inline-flex;align-items:center;gap:7px;background:#FEF2F2;color:#C0392B;border:1.5px solid #FECACA;padding:9px 20px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;text-decoration:none}
   .emerg-tab:hover{background:#FEE2E2;border-color:#FCA5A5}
@@ -518,8 +510,19 @@ function openBooking(docId) {
           <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;background:var(--white)" id="pay-paypal-label">
             <input type="radio" name="pay" value="paypal" style="accent-color:var(--green-mid);flex-shrink:0"> <span style="font-size:13px;font-weight:500">🅿️ PayPal</span>
           </label>
+          <label style="display:flex;align-items:center;gap:10px;padding:11px 14px;border:1.5px solid var(--border);border-radius:10px;cursor:pointer;background:var(--white)" id="pay-cortesia-label">
+            <input type="radio" name="pay" value="cortesia" style="accent-color:var(--green-mid);flex-shrink:0"> <span style="font-size:13px;font-weight:500">🎗️ Código de cortesía (pro bono)</span>
+          </label>
         </div>
         <p style="font-size:11px;color:var(--muted);margin-top:8px">Pago 100% seguro. Cancelación gratuita hasta 24h antes de la consulta.</p>
+        <div id="cortesia-box" style="display:none;margin-top:12px">
+          <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Ingresa tu código de cortesía</label>
+          <div style="display:flex;gap:8px">
+            <input type="text" id="cortesia-codigo" placeholder="CORT-XXXXXX" style="flex:1;padding:10px;border:1.5px solid var(--border);border-radius:8px;text-transform:uppercase;font-family:monospace">
+            <button type="button" id="cortesia-validar-btn" onclick="validarCortesia(${d.id})" style="background:var(--green-mid);color:#fff;border:none;padding:0 16px;border-radius:8px;cursor:pointer">Validar</button>
+          </div>
+          <div id="cortesia-feedback" style="font-size:12px;margin-top:6px"></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -530,21 +533,21 @@ function openBooking(docId) {
         </div>
         <div class="modal-total-amount">$${d.fee}</div>
       </div>
-      <div class="test-banner">
-        <span class="test-badge">🧪 MODO PRUEBA</span>
-        <span style="font-size:12px;color:#633806;line-height:1.5">El pago real aún no está activo. Puedes confirmar la reserva directamente para probar la videollamada.</span>
-      </div>
-      <button class="btn-test" onclick="confirmBookingDesdeStep1(${d.id},'${slot}')">🧪 Confirmar reserva sin pago</button>
-      <button class="btn-skip" onclick="showPaymentStep(${d.id},'${slot}')">Ver flujo de pago completo →</button>
+      <button class="confirm-btn" id="btn-continuar-pago" onclick="showPaymentStep(${d.id},'${slot}')">Continuar al pago →</button>
+      <button class="confirm-btn" id="btn-cortesia-confirmar" style="display:none;opacity:.6" disabled onclick="confirmCortesia(${d.id},'${slot}')">Confirmar consulta de cortesía</button>
     </div>`;
   // toggle visual métodos de pago
   document.querySelectorAll('input[name=pay]').forEach(r => r.addEventListener('change', () => {
-    ['card','paypal'].forEach(v => {
+    ['card','paypal','cortesia'].forEach(v => {
       const el = document.getElementById('pay-'+v+'-label');
       if(!el) return;
       el.style.borderColor = r.value===v ? 'var(--green-mid)' : 'var(--border)';
       el.style.background  = r.value===v ? 'var(--green-light)' : 'var(--white)';
     });
+    const metodo = document.querySelector('input[name=pay]:checked')?.value;
+    const box = document.getElementById('cortesia-box');
+    if (box) box.style.display = (metodo === 'cortesia') ? 'block' : 'none';
+    _cortesiaValida = false; _actualizarBotonesPago();
   }));
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -561,7 +564,7 @@ function _captureForm(docId, slot) {
     tel:      inputs[3]?.value.trim() || '',
     motivo:   inputs[4]?.value.trim() || '',
     alergias: inputs[5]?.value.trim() || '',
-    metodo:   document.querySelector('input[name=pay]:checked')?.value || 'test',
+    metodo:   document.querySelector('input[name=pay]:checked')?.value || 'card',
   };
   return _bookingForm;
 }
@@ -572,6 +575,49 @@ async function confirmBookingDesdeStep1(docId, slot) {
     alert('Por favor completa al menos tu nombre y correo electrónico.');
     return;
   }
+  await _doConfirmBooking(docId, slot, form);
+}
+
+let _cortesiaValida = false;
+function _actualizarBotonesPago() {
+  const metodo = document.querySelector('input[name=pay]:checked')?.value;
+  const bPago = document.getElementById('btn-continuar-pago');
+  const bCort = document.getElementById('btn-cortesia-confirmar');
+  if (!bPago || !bCort) return;
+  if (metodo === 'cortesia') {
+    bPago.style.display='none'; bCort.style.display='block';
+    bCort.disabled = !_cortesiaValida; bCort.style.opacity = _cortesiaValida ? '1' : '.6';
+  } else {
+    bPago.style.display='block'; bCort.style.display='none';
+  }
+}
+async function validarCortesia(docId) {
+  const codigo = document.getElementById('cortesia-codigo').value.trim().toUpperCase();
+  const fb = document.getElementById('cortesia-feedback');
+  if (!codigo) { fb.textContent=''; _cortesiaValida=false; _actualizarBotonesPago(); return; }
+  fb.style.color='var(--muted)'; fb.textContent='Validando...';
+  try {
+    const res = await fetch(API + '?action=validar_codigo', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({medico_id: docId, codigo})
+    });
+    const json = await res.json();
+    if (json.ok && json.data.valido) {
+      _cortesiaValida = true;
+      fb.style.color='var(--green)'; fb.textContent='✓ Código válido — '+json.data.restantes+' uso(s) restante(s)';
+    } else {
+      _cortesiaValida = false;
+      fb.style.color='#C0392B'; fb.textContent='✗ '+((json.data&&json.data.motivo)||json.error||'Código inválido');
+    }
+  } catch(e) { _cortesiaValida=false; fb.style.color='#C0392B'; fb.textContent='Error de conexión'; }
+  _actualizarBotonesPago();
+}
+async function confirmCortesia(docId, slot) {
+  const form = _captureForm(docId, slot);
+  if (!form.nombre || !form.email) { alert('Por favor completa al menos tu nombre y correo electrónico.'); return; }
+  if (!_cortesiaValida) { alert('Ingresa y valida un código de cortesía primero.'); return; }
+  form.codigo = document.getElementById('cortesia-codigo').value.trim().toUpperCase();
+  form.metodo = 'cortesia';
   await _doConfirmBooking(docId, slot, form);
 }
 
@@ -619,10 +665,6 @@ function showPaymentStep(docId, slot) {
         <div class="modal-total-amount">$${d.fee}</div>
       </div>
       <button class="confirm-btn" onclick="confirmBooking(${d.id},'${slot}')">Pagar y confirmar consulta</button>
-      <div class="test-banner" style="margin-top:10px;margin-bottom:0">
-        <span class="test-badge">🧪 MODO PRUEBA</span>
-        <button onclick="confirmBookingDesdeStep1(${d.id},'${slot}')" style="font-size:12px;color:#633806;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0">Saltar pago y confirmar directo</button>
-      </div>
     </div>`;
 }
 
@@ -637,7 +679,7 @@ async function _doConfirmBooking(docId, slot, form) {
   const d = DOCTORS.find(x => x.id === docId);
 
   // Deshabilitar todos los botones de acción
-  document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b => { b.disabled=true; b.style.opacity='.6'; });
+  document.querySelectorAll('#modal-content .confirm-btn').forEach(b => { b.disabled=true; b.style.opacity='.6'; });
 
   try {
     const res  = await fetch(API + '?action=reservar', {
@@ -647,29 +689,31 @@ async function _doConfirmBooking(docId, slot, form) {
         medico_id: d.id, nombre_paciente: form.nombre, email_paciente: form.email,
         telefono_paciente: form.tel, edad: form.edad, horario: slot,
         motivo: form.motivo, alergias: form.alergias,
-        metodo_pago: form.metodo || 'test'
+        metodo_pago: form.metodo || 'card',
+        codigo: form.codigo || null
       })
     });
     const json = await res.json();
-    if (!json.ok) { alert('Error: ' + json.error); document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b=>{b.disabled=false;b.style.opacity='1';}); return; }
+    if (!json.ok) { alert('Error: ' + json.error); document.querySelectorAll('#modal-content .confirm-btn').forEach(b=>{b.disabled=false;b.style.opacity='1';}); return; }
 
     const reservaId   = json.data.reserva_id;
     const tokenAcceso = json.data.token_acceso;
     const salaVideo   = json.data.sala_video;
+    const esCortesia  = form.metodo === 'cortesia';
 
     document.getElementById('modal-content').innerHTML = `
       <div class="success-modal">
         <div class="success-circle">✓</div>
         <h2>¡Reserva confirmada!</h2>
-        <p>Tu pago fue recibido por MedicOnline. Guarda tu número de reserva — lo necesitarás para unirte a la videollamada.</p>
+        <p>${esCortesia?'Tu consulta de cortesía quedó agendada.':'Tu pago fue recibido por MedicOnline.'} Guarda tu número de reserva — lo necesitarás para unirte a la videollamada.</p>
         <div class="success-detail">
           <div class="success-detail-row"><span>Médico</span><span>${d.name}</span></div>
           <div class="success-detail-row"><span>Especialidad</span><span>${d.spec}</span></div>
           <div class="success-detail-row"><span>Horario</span><span>${slot}</span></div>
-          <div class="success-detail-row"><span>Total pagado</span><span>$${d.fee} USD</span></div>
+          <div class="success-detail-row"><span>${esCortesia?'Modalidad':'Total pagado'}</span><span>${esCortesia?'🎗️ Cortesía (gratis)':'$'+d.fee+' USD'}</span></div>
           <div class="success-detail-row"><span>N° de reserva</span><span style="font-weight:700;color:var(--green)">#${reservaId}</span></div>
           <div class="success-detail-row"><span>Código de acceso</span><span style="font-weight:700;color:var(--green);font-family:monospace;font-size:15px;letter-spacing:1px">${tokenAcceso}</span></div>
-          <div class="success-detail-row"><span>Estado</span><span style="color:var(--green-mid);font-weight:500">✓ Pago confirmado</span></div>
+          <div class="success-detail-row"><span>Estado</span><span style="color:var(--green-mid);font-weight:500">✓ ${esCortesia?'Consulta agendada':'Pago confirmado'}</span></div>
         </div>
         <div style="background:var(--green-light);border-radius:12px;padding:16px;text-align:left;margin-bottom:16px;border:1.5px solid rgba(13,122,95,.2)">
           <div style="font-size:11px;font-weight:600;color:var(--green-dark);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">📹 Tu enlace de videollamada</div>
@@ -695,7 +739,7 @@ async function _doConfirmBooking(docId, slot, form) {
       </div>`;
   } catch(e) {
     alert('Error de conexión con el servidor');
-    document.querySelectorAll('#modal-content .confirm-btn, #modal-content .btn-test').forEach(b=>{b.disabled=false;b.style.opacity='1';});
+    document.querySelectorAll('#modal-content .confirm-btn').forEach(b=>{b.disabled=false;b.style.opacity='1';});
   }
 }
 
@@ -840,9 +884,6 @@ function abrirReservaEmergencia(doc) {
     <div class="modal-total" style="margin-bottom:16px">
       <div><div class="modal-total-label">Total a pagar</div><div style="font-size:11px;color:var(--muted)">Pago en custodia segura</div></div>
       <div class="modal-total-amount">$${parseFloat(doc.tarifa_final).toFixed(2)}</div>
-    </div>
-    <div style="background:#FFF8E6;border-radius:10px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#633806;border:1px solid #F5C842">
-      🧪 <strong>Modo prueba:</strong> Sin pago real activo.
     </div>
     <button class="confirm-btn" style="background:linear-gradient(135deg,#EF4444,#C0392B)" onclick="confirmarEmergencia(${doc.id},${doc.tarifa_final})">
       🚨 Confirmar y conectar ahora

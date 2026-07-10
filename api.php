@@ -75,6 +75,10 @@ try {
         case 'medico_toggle_estado': medicoToggleEstado();   break;
         case 'medico_cambiar_pass':  medicoCambiarPass();    break;
         case 'medico_recuperar':     medicoRecuperar();      break;
+        case 'medico_codigos':        medicoCodigos();        break;
+        case 'medico_codigo_crear':   medicoCodigoCrear();    break;
+        case 'medico_codigo_revocar': medicoCodigoRevocar();  break;
+        case 'validar_codigo':        validarCodigo();        break;
         case 'confirmar_consulta':   confirmarConsulta();    break;
         case 'procesar_reembolsos':  procesarReembolsos();   break;
         case 'admin_reembolso':      adminReembolso();       break;
@@ -186,16 +190,13 @@ function crearReserva(): void {
     $pago = fetchOne(query('SELECT tarifa FROM medico_pago WHERE medico_id=?','i',[(int)$data['medico_id']]));
     if (!$pago) throw new Exception('Medico no encontrado o sin tarifa.');
 
-    $total    = (float)$pago['tarifa'];
-    $comision = round($total * COMMISSION_RATE, 2);
-    $neto     = round($total - $comision, 2);
-    $medicoId = (int)$data['medico_id'];
-    $motivo   = (string)($data['motivo']   ?? '');  // NUNCA null en bind_param
-    $alergias = (string)($data['alergias'] ?? '');  // NUNCA null en bind_param
-    $salaVideo    = 'medicnet-' . bin2hex(random_bytes(10));
-    $tokenAcceso  = strtoupper(substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4));
+    $medicoId   = (int)$data['medico_id'];
+    $motivo     = (string)($data['motivo']   ?? '');
+    $alergias   = (string)($data['alergias'] ?? '');
+    $esCortesia = (($data['metodo_pago'] ?? '') === 'cortesia');
 
-    // Crear columnas sala_video y token_acceso si no existen (MariaDB 10 compatible)
+    // Asegurar columnas sala_video / token_acceso ANTES de abrir cualquier transacción
+    // (ALTER hace commit implícito; ya existen, así que en la práctica no corre).
     $chk = $db->query("SELECT COUNT(*) AS c FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='reservas' AND COLUMN_NAME='sala_video'");
     if ($chk && (int)$chk->fetch_assoc()['c'] === 0)
         $db->query("ALTER TABLE reservas ADD COLUMN sala_video VARCHAR(64) DEFAULT NULL");
@@ -203,15 +204,56 @@ function crearReserva(): void {
     if ($chk2 && (int)$chk2->fetch_assoc()['c'] === 0)
         $db->query("ALTER TABLE reservas ADD COLUMN token_acceso VARCHAR(32) DEFAULT NULL");
 
-    $stmt = $db->prepare('INSERT INTO reservas (medico_id,paciente_id,horario,motivo,alergias,metodo_pago,monto_total,comision,monto_medico,estado_pago,limite_confirmacion,sala_video,token_acceso) VALUES (?,?,?,?,?,?,?,?,?,"en_custodia",DATE_ADD(NOW(),INTERVAL 24 HOUR),?,?)');
-    if (!$stmt) throw new Exception('Prepare reservas: '.$db->error);
-    $stmt->bind_param('iissssdddss',$medicoId,$pacienteId,$data['horario'],$motivo,$alergias,$data['metodo_pago'],$total,$comision,$neto,$salaVideo,$tokenAcceso);
-    if (!$stmt->execute()) throw new Exception('Execute reservas: '.$stmt->error);
-    $reservaId = (int)$db->insert_id;
-    if (!$reservaId) throw new Exception('insert_id=0 — revisar permisos INSERT en tabla reservas');
+    // ── Cortesía: bloquear y validar el código dentro de una transacción ──
+    $codigoId = null;
+    if ($esCortesia) {
+        $codigoStr = strtoupper(trim((string)($data['codigo'] ?? '')));
+        if ($codigoStr === '') throw new Exception('Falta el código de cortesía.');
+        $db->begin_transaction();
+        $st = $db->prepare('SELECT id,usos_max,usos_count,estado,expira_en FROM medico_codigos WHERE codigo=? AND medico_id=? FOR UPDATE');
+        $st->bind_param('si', $codigoStr, $medicoId); $st->execute();
+        $cod = $st->get_result()->fetch_assoc();
+        if (!$cod)                          { $db->rollback(); throw new Exception('Código de cortesía no válido para este médico.'); }
+        if ($cod['estado'] === 'revocado')  { $db->rollback(); throw new Exception('El código de cortesía fue revocado.'); }
+        if ($cod['estado'] === 'agotado' || (int)$cod['usos_count'] >= (int)$cod['usos_max']) { $db->rollback(); throw new Exception('El código de cortesía está agotado.'); }
+        if ($cod['expira_en'] && $cod['expira_en'] < date('Y-m-d')) { $db->rollback(); throw new Exception('El código de cortesía está vencido.'); }
+        $codigoId = (int)$cod['id'];
+    }
 
-    $ins = $db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"custodia",?,"Pago recibido en custodia")');
-    if ($ins) { $ins->bind_param('id',$reservaId,$total); $ins->execute(); }
+    if ($esCortesia) {
+        $total = 0.0; $comision = 0.0; $neto = 0.0; $estadoPago = 'exonerado';
+    } else {
+        $total      = (float)$pago['tarifa'];
+        $comision   = round($total * COMMISSION_RATE, 2);
+        $neto       = round($total - $comision, 2);
+        $estadoPago = 'en_custodia';
+    }
+
+    $salaVideo   = 'medicnet-' . bin2hex(random_bytes(10));
+    $tokenAcceso = strtoupper(substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4));
+
+    $stmt = $db->prepare('INSERT INTO reservas (medico_id,paciente_id,horario,motivo,alergias,metodo_pago,monto_total,comision,monto_medico,estado_pago,limite_confirmacion,sala_video,token_acceso) VALUES (?,?,?,?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 24 HOUR),?,?)');
+    if (!$stmt) { if ($esCortesia) $db->rollback(); throw new Exception('Prepare reservas: '.$db->error); }
+    $stmt->bind_param('iissssdddsss',$medicoId,$pacienteId,$data['horario'],$motivo,$alergias,$data['metodo_pago'],$total,$comision,$neto,$estadoPago,$salaVideo,$tokenAcceso);
+    if (!$stmt->execute()) { if ($esCortesia) $db->rollback(); throw new Exception('Execute reservas: '.$stmt->error); }
+    $reservaId = (int)$db->insert_id;
+    if (!$reservaId) { if ($esCortesia) $db->rollback(); throw new Exception('insert_id=0 — revisar permisos INSERT en tabla reservas'); }
+
+    if ($esCortesia) {
+        // estado se evalúa ANTES de incrementar (MariaDB aplica los SET de izq. a der.)
+        $u = $db->prepare('UPDATE medico_codigos SET estado=IF(usos_count+1>=usos_max,"agotado","activo"), usos_count=usos_count+1 WHERE id=?');
+        if (!$u) { $db->rollback(); throw new Exception('Prepare update codigo: '.$db->error); }
+        $u->bind_param('i', $codigoId);
+        if (!$u->execute()) { $db->rollback(); throw new Exception('No se pudo actualizar el código de cortesía.'); }
+        $cu = $db->prepare('INSERT INTO codigo_usos (codigo_id,reserva_id,paciente_email) VALUES (?,?,?)');
+        if (!$cu) { $db->rollback(); throw new Exception('Prepare codigo_usos: '.$db->error); }
+        $cu->bind_param('iis', $codigoId, $reservaId, $data['email_paciente']);
+        if (!$cu->execute()) { $db->rollback(); throw new Exception('No se pudo registrar el canje del código.'); }
+        $db->commit();
+    } else {
+        $ins = $db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"custodia",?,"Pago recibido en custodia")');
+        if ($ins) { $ins->bind_param('id',$reservaId,$total); $ins->execute(); }
+    }
 
     // Obtener datos del médico para emails
     $medDat = fetchOne(query('SELECT m.nombre,m.apellido,m.titulo,m.email,e.especialidad FROM medicos m JOIN medico_especialidad e ON e.medico_id=m.id WHERE m.id=?','i',[$medicoId]));
@@ -572,6 +614,76 @@ function medicoRecuperar(): void {
     jsonOk(['mensaje'=>'Password temporal generado','password_temp'=>$temp,'nota'=>'Pídele al médico que lo cambie al ingresar']);
 }
 
+// ── CÓDIGOS DE CORTESÍA ───────────────────────────────────────────────────────
+function generarCodigoUnico(mysqli $db): string {
+    $alfabeto = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sin 0/O/1/I
+    for ($intento = 0; $intento < 12; $intento++) {
+        $s = '';
+        for ($i = 0; $i < 6; $i++) $s .= $alfabeto[random_int(0, strlen($alfabeto) - 1)];
+        $codigo = 'CORT-' . $s;
+        if (!fetchOne(query('SELECT id FROM medico_codigos WHERE codigo=?', 's', [$codigo]))) return $codigo;
+    }
+    throw new Exception('No se pudo generar un código único, reintenta.');
+}
+
+function medicoCodigos(): void {
+    $medicoId = checkMedico(); $db = getDB();
+    $stmt = $db->prepare('SELECT id,codigo,nota,usos_max,usos_count,estado,expira_en,creado_en FROM medico_codigos WHERE medico_id=? ORDER BY creado_en DESC');
+    $stmt->bind_param('i', $medicoId); $stmt->execute();
+    $codigos = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    foreach ($codigos as &$c) {
+        $s2 = $db->prepare('SELECT paciente_email,usado_en FROM codigo_usos WHERE codigo_id=? ORDER BY usado_en DESC');
+        $s2->bind_param('i', $c['id']); $s2->execute();
+        $c['canjes'] = $s2->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+    jsonOk($codigos);
+}
+
+function medicoCodigoCrear(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $usosMax = (int)($data['usos_max'] ?? 1);
+    if ($usosMax < 1 || $usosMax > 100) jsonError('El número de usos debe estar entre 1 y 100');
+    $nota = trim((string)($data['nota'] ?? '')); if (mb_strlen($nota) > 150) $nota = mb_substr($nota, 0, 150);
+    $notaParam = $nota !== '' ? $nota : null;
+    $expira = null;
+    if (!empty($data['expira_en'])) {
+        $d = (string)$data['expira_en'];
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) jsonError('Fecha de vencimiento inválida');
+        if ($d < date('Y-m-d')) jsonError('El vencimiento debe ser una fecha futura');
+        $expira = $d;
+    }
+    $db = getDB();
+    $codigo = generarCodigoUnico($db);
+    $stmt = $db->prepare('INSERT INTO medico_codigos (medico_id,codigo,nota,usos_max,expira_en) VALUES (?,?,?,?,?)');
+    $stmt->bind_param('issis', $medicoId, $codigo, $notaParam, $usosMax, $expira);
+    if (!$stmt->execute()) jsonError('No se pudo crear el código: ' . $stmt->error);
+    jsonOk(['id' => (int)$db->insert_id, 'codigo' => $codigo, 'usos_max' => $usosMax, 'nota' => $notaParam, 'expira_en' => $expira]);
+}
+
+function medicoCodigoRevocar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($data['codigo_id'] ?? 0);
+    if (!$id) jsonError('Falta codigo_id');
+    $db = getDB();
+    $stmt = $db->prepare("UPDATE medico_codigos SET estado='revocado' WHERE id=? AND medico_id=? AND estado<>'revocado'");
+    $stmt->bind_param('ii', $id, $medicoId); $stmt->execute();
+    if ($db->affected_rows < 1) jsonError('Código no encontrado o ya revocado');
+    jsonOk(['mensaje' => 'Código revocado']);
+}
+
+function validarCodigo(): void {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $medicoId = (int)($data['medico_id'] ?? 0);
+    $codigo   = strtoupper(trim((string)($data['codigo'] ?? '')));
+    if (!$medicoId || $codigo === '') jsonError('Faltan datos');
+    $row = fetchOne(query('SELECT usos_max,usos_count,estado,expira_en FROM medico_codigos WHERE codigo=? AND medico_id=?', 'si', [$codigo, $medicoId]));
+    if (!$row)                          { jsonOk(['valido' => false, 'motivo' => 'Código no válido para este médico']); return; }
+    if ($row['estado'] === 'revocado')  { jsonOk(['valido' => false, 'motivo' => 'Código revocado']); return; }
+    if ($row['estado'] === 'agotado' || (int)$row['usos_count'] >= (int)$row['usos_max']) { jsonOk(['valido' => false, 'motivo' => 'Código agotado']); return; }
+    if ($row['expira_en'] && $row['expira_en'] < date('Y-m-d')) { jsonOk(['valido' => false, 'motivo' => 'Código vencido']); return; }
+    jsonOk(['valido' => true, 'restantes' => (int)$row['usos_max'] - (int)$row['usos_count']]);
+}
+
 // ── CONFIRMAR CONSULTA ────────────────────────────────────────────────────────
 function confirmarConsulta(): void {
     $medicoId=checkMedico(); $data=json_decode(file_get_contents('php://input'),true);
@@ -587,19 +699,25 @@ function confirmarConsulta(): void {
     if($r['limite_confirmacion']&&strtotime($r['limite_confirmacion'])<time()) jsonError('Tiempo límite expirado');
     $ahora=date('Y-m-d H:i:s'); $rid=(int)$data['reserva_id'];
     $com=(float)$r['comision']; $neto=(float)$r['monto_medico'];
-    $upd=$db->prepare('UPDATE reservas SET estado_consulta="confirmada",estado_pago="pagado",estado_pago_medico="transferido",confirmada_en=? WHERE id=?');
-    $upd->bind_param('si',$ahora,$rid);$upd->execute();
-    $ins=$db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"comision",?,"Comision MedicOnline 15%")');
-    $ins->bind_param('id',$rid,$com);$ins->execute();
-    $ins2=$db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"liberacion",?,"Pago liberado al medico")');
-    $ins2->bind_param('id',$rid,$neto);$ins2->execute();
+    $esExonerado = ($r['estado_pago'] === 'exonerado');
+    if ($esExonerado) {
+        $upd=$db->prepare('UPDATE reservas SET estado_consulta="confirmada",confirmada_en=? WHERE id=?');
+        $upd->bind_param('si',$ahora,$rid);$upd->execute();
+    } else {
+        $upd=$db->prepare('UPDATE reservas SET estado_consulta="confirmada",estado_pago="pagado",estado_pago_medico="transferido",confirmada_en=? WHERE id=?');
+        $upd->bind_param('si',$ahora,$rid);$upd->execute();
+        $ins=$db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"comision",?,"Comision MedicOnline 15%")');
+        $ins->bind_param('id',$rid,$com);$ins->execute();
+        $ins2=$db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"liberacion",?,"Pago liberado al medico")');
+        $ins2->bind_param('id',$rid,$neto);$ins2->execute();
+    }
     // Email al médico — pago liberado
     $medInfo = fetchOne(query('SELECT m.nombre,m.apellido,m.titulo,m.email FROM medicos m WHERE m.id=?','i',[$medicoId]));
     $pacInfo = fetchOne(query('SELECT p.nombre, p.email FROM pacientes p JOIN reservas r ON r.paciente_id=p.id WHERE r.id=?','i',[$rid]));
     $resInfo = fetchOne(query('SELECT token_acceso FROM reservas WHERE id=?','i',[$rid]));
     if ($medInfo) {
         $nombreMedicoFull = $medInfo['titulo'].' '.$medInfo['nombre'].' '.$medInfo['apellido'];
-        emailPagoLiberado([
+        if (!$esExonerado) emailPagoLiberado([
             'medico_nombre' => $nombreMedicoFull,
             'email_medico'  => $medInfo['email'],
             'paciente'      => $pacInfo['nombre'] ?? 'Paciente',

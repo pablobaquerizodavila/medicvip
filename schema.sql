@@ -127,7 +127,7 @@ CREATE TABLE `reservas` (
   `monto_total` decimal(8,2) NOT NULL,
   `comision` decimal(8,2) NOT NULL,
   `monto_medico` decimal(8,2) NOT NULL,
-  `estado_pago` enum('pendiente','en_custodia','pagado','reembolsado') NOT NULL DEFAULT 'pendiente',
+  `estado_pago` enum('pendiente','en_custodia','pagado','reembolsado','exonerado') NOT NULL DEFAULT 'pendiente',
   `estado_consulta` enum('agendada','confirmada','realizada','cancelada','no_realizada') NOT NULL DEFAULT 'agendada',
   `estado_pago_medico` enum('pendiente','transferido') NOT NULL DEFAULT 'pendiente',
   `confirmada_en` datetime DEFAULT NULL,
@@ -155,6 +155,39 @@ CREATE TABLE `transacciones` (
   KEY `reserva_id` (`reserva_id`),
   CONSTRAINT `transacciones_ibfk_1` FOREIGN KEY (`reserva_id`) REFERENCES `reservas` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `medico_codigos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `medico_codigos` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `medico_id` int(10) unsigned NOT NULL,
+  `codigo` varchar(20) NOT NULL,
+  `nota` varchar(150) DEFAULT NULL,
+  `usos_max` int(10) unsigned NOT NULL DEFAULT 1,
+  `usos_count` int(10) unsigned NOT NULL DEFAULT 0,
+  `estado` enum('activo','agotado','revocado') NOT NULL DEFAULT 'activo',
+  `expira_en` date DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_codigo` (`codigo`),
+  KEY `idx_medico` (`medico_id`),
+  CONSTRAINT `fk_codigos_medico` FOREIGN KEY (`medico_id`) REFERENCES `medicos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `codigo_usos`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8mb4 */;
+CREATE TABLE `codigo_usos` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `codigo_id` int(10) unsigned NOT NULL,
+  `reserva_id` int(10) unsigned NOT NULL,
+  `paciente_email` varchar(150) DEFAULT NULL,
+  `usado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_codigo` (`codigo_id`),
+  CONSTRAINT `fk_uso_codigo` FOREIGN KEY (`codigo_id`) REFERENCES `medico_codigos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;
 /*!50001 DROP VIEW IF EXISTS `v_medicos_activos`*/;
