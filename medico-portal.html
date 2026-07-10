@@ -160,6 +160,7 @@
       <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">🏠</span> Inicio</div>
       <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
       <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Mis reservas</div>
+      <div class="nav-item" onclick="showSection('pacientes',this); loadPacientes()"><span class="nav-icon">👥</span> Pacientes</div>
       <div class="nav-item" onclick="showSection('pagos',this); loadPagos()"><span class="nav-icon">💰</span> Mis pagos</div>
       <div class="nav-item" onclick="showSection('resenas',this); loadMedicoResenas()"><span class="nav-icon">⭐</span> Mis reseñas</div>
       <div class="nav-item" onclick="showSection('codigos',this); loadCodigos()"><span class="nav-icon">🎗️</span> Códigos de cortesía</div>
@@ -304,6 +305,13 @@
       </div>
       <div id="resenas-list-medico"><div class="loading">Cargando...</div></div>
     </div>
+
+    <section id="section-pacientes" class="section">
+      <div class="page-title">👥 Pacientes</div>
+      <p class="page-sub">Pacientes que han agendado contigo. Abre su expediente clínico.</p>
+      <input type="text" id="pac-buscar" placeholder="🔍 Buscar por nombre, cédula o correo..." oninput="filterPacientes()" style="width:100%;max-width:420px;padding:10px 14px;border:1px solid var(--border);border-radius:10px;margin-bottom:16px;box-sizing:border-box">
+      <div id="pacientes-lista"></div>
+    </section>
 
     <section id="section-codigos" class="section">
       <div class="page-title">🎗️ Códigos de cortesía</div>
@@ -689,6 +697,49 @@ async function guardarPerfil() {
   } catch(e) { showMsg('perfil-msg','No se pudo conectar','error'); }
 }
 
+let _pacientesData = [];
+async function loadPacientes() {
+  const cont = document.getElementById('pacientes-lista');
+  cont.innerHTML = '<p style="color:var(--muted);font-size:14px">Cargando...</p>';
+  try {
+    const res = await fetch(API + '?action=medico_pacientes', {headers: authHeaders()});
+    const json = await res.json();
+    if (!json.ok) { cont.innerHTML = '<p style="color:#C0392B;font-size:14px">No se pudieron cargar los pacientes.</p>'; return; }
+    _pacientesData = json.data || [];
+    renderPacientes(_pacientesData);
+  } catch(e) { cont.innerHTML = '<p style="color:#C0392B;font-size:14px">Error de conexión.</p>'; }
+}
+function _edadDe(f){ if(!f) return '—'; const d=new Date(f); if(isNaN(d)) return '—'; const t=new Date(); let e=t.getFullYear()-d.getFullYear(); const m=t.getMonth()-d.getMonth(); if(m<0||(m===0&&t.getDate()<d.getDate()))e--; return (e>=0&&e<130)?e+' años':'—'; }
+function renderPacientes(list) {
+  const cont = document.getElementById('pacientes-lista');
+  if (!list.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:14px">No tienes pacientes todavía. Aparecerán aquí cuando alguien agende contigo.</p>'; return; }
+  cont.innerHTML = list.map(p => {
+    const ini = (p.nombre||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase();
+    const ident = p.cedula ? ('CI '+p.cedula) : (p.email||'');
+    return `<div style="display:flex;align-items:center;gap:14px;border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;background:var(--white);flex-wrap:wrap">
+      <div style="width:44px;height:44px;border-radius:50%;background:#E1F5EE;color:#094D3B;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">${ini}</div>
+      <div style="flex:1;min-width:160px">
+        <div style="font-weight:600">${p.nombre||''}</div>
+        <div style="font-size:12px;color:var(--muted)">${_edadDe(p.fecha_nacimiento)} · ${p.genero||'—'} · ${ident}</div>
+      </div>
+      <div style="font-size:12px;color:var(--muted);text-align:right;min-width:110px">
+        <div>${p.num_citas} cita(s)</div>
+        <div>Última: ${p.ultima_cita?String(p.ultima_cita).slice(0,10):'—'}</div>
+      </div>
+      <button onclick="window.open('/expediente-paciente.html?paciente=${p.id}','_blank')" style="background:#1565C0;border:none;color:#fff;font-size:13px;padding:8px 16px;border-radius:8px;cursor:pointer">📋 Expediente</button>
+    </div>`;
+  }).join('');
+}
+function filterPacientes() {
+  const q = (document.getElementById('pac-buscar').value||'').toLowerCase().trim();
+  if (!q) { renderPacientes(_pacientesData); return; }
+  renderPacientes(_pacientesData.filter(p =>
+    (p.nombre||'').toLowerCase().includes(q) ||
+    (p.cedula||'').toLowerCase().includes(q) ||
+    (p.email||'').toLowerCase().includes(q) ||
+    (p.telefono||'').toLowerCase().includes(q)
+  ));
+}
 async function loadReservas() {
   const c = document.getElementById('reservas-container');
   c.innerHTML = '<div class="loading">Cargando...</div>';

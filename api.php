@@ -88,6 +88,7 @@ try {
         case 'paciente_historial_actualizar': pacienteHistorialActualizar(); break;
         case 'medico_ver_historial':          medicoVerHistorialPaciente();  break;
         case 'medico_guardar_nota':           medicoGuardarNota();           break;
+        case 'medico_pacientes':             medicoPacientes();             break;
         case 'medico_expediente':            medicoExpediente();            break;
         case 'medico_tratamiento_crear':     medicoTratamientoCrear();      break;
         case 'medico_tratamiento_actualizar':medicoTratamientoActualizar(); break;
@@ -851,6 +852,13 @@ function medicoGuardarNota(): void {
 function checkRelacionMedicoPaciente(int $medicoId, int $pid): void {
     if (!fetchOne(query('SELECT id FROM reservas WHERE medico_id=? AND paciente_id=? LIMIT 1', 'ii', [$medicoId, $pid])))
         jsonError('No tienes citas con este paciente', 403);
+}
+
+function medicoPacientes(): void {
+    $medicoId = checkMedico(); $db = getDB();
+    $st = $db->prepare('SELECT p.id,p.nombre,p.email,p.telefono,p.cedula,p.fecha_nacimiento,p.genero, MAX(r.creado_en) AS ultima_cita, COUNT(r.id) AS num_citas FROM pacientes p JOIN reservas r ON r.paciente_id=p.id WHERE r.medico_id=? GROUP BY p.id ORDER BY ultima_cita DESC');
+    $st->bind_param('i', $medicoId); $st->execute();
+    jsonOk($st->get_result()->fetch_all(MYSQLI_ASSOC));
 }
 
 function guardarDocumentoBase64(string $base64, string $mime): ?string {
