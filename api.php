@@ -67,6 +67,9 @@ try {
         case 'medico_agenda':           medicoAgenda();           break;
         case 'medico_bloqueo_crear':    medicoBloqueoCrear();     break;
         case 'medico_bloqueo_eliminar': medicoBloqueoEliminar();  break;
+        case 'paciente_cancelar_reserva':    pacienteCancelarReserva();    break;
+        case 'paciente_reprogramar_reserva': pacienteReprogramarReserva(); break;
+        case 'medico_cancelar_reserva':      medicoCancelarReserva();      break;
         case 'admin_login':          adminLogin();           break;
         case 'admin_medicos':        adminMedicos();         break;
         case 'admin_eliminar':       adminEliminar();        break;
@@ -199,17 +202,7 @@ function crearReserva(): void {
     $pacienteId = checkPaciente();
     $db  = getDB();
     $inicioVal = (string)($data['inicio'] ?? '');
-    if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $inicioVal)) throw new Exception('Fecha/hora inválida.');
-    $its = strtotime($inicioVal);
-    if ($its === false || $its <= time()) throw new Exception('Ese horario ya pasó, elige otro.');
-    if ($its > strtotime('+29 days')) throw new Exception('Solo puedes agendar hasta 4 semanas adelante.');
-    $fechaCita = substr($inicioVal, 0, 10);
-    if (fetchOne(query('SELECT id FROM medico_bloqueos WHERE medico_id=? AND ? BETWEEN fecha_desde AND fecha_hasta LIMIT 1','is',[(int)$data['medico_id'],$fechaCita])))
-        throw new Exception('Ese día no está disponible.');
-    if (fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND inicio=? AND estado_consulta='agendada' LIMIT 1",'is',[(int)$data['medico_id'],$inicioVal])))
-        throw new Exception('Ese horario ya fue tomado. Elige otro.');
-    $_dAbr = ['Mon'=>'Lun','Tue'=>'Mar','Wed'=>'Mié','Thu'=>'Jue','Fri'=>'Vie','Sat'=>'Sáb','Sun'=>'Dom'];
-    $data['horario'] = $_dAbr[date('D',$its)].' '.date('d/m',$its).' '.date('H:i',$its);
+    $data['horario'] = validarNuevoInicio((int)$data['medico_id'], $inicioVal);
     $pac = fetchOne(query('SELECT nombre,email FROM pacientes WHERE id=?','i',[$pacienteId]));
     $data['nombre_paciente'] = $pac['nombre'];
     $data['email_paciente']  = $pac['email'];
@@ -322,7 +315,7 @@ function generarSlotsDisponibles(int $medicoId, int $dias = 28): array {
     $sb = $db->prepare("SELECT fecha_desde,fecha_hasta FROM medico_bloqueos WHERE medico_id=?");
     $sb->bind_param('i',$medicoId); $sb->execute();
     $bloqueos = $sb->get_result()->fetch_all(MYSQLI_ASSOC);
-    $so = $db->prepare("SELECT inicio FROM reservas WHERE medico_id=? AND estado_consulta='agendada' AND inicio IS NOT NULL");
+    $so = $db->prepare("SELECT inicio FROM reservas WHERE medico_id=? AND estado_consulta IN ('agendada','confirmada') AND inicio IS NOT NULL");
     $so->bind_param('i',$medicoId); $so->execute();
     $ocupSet = array_flip(array_column($so->get_result()->fetch_all(MYSQLI_ASSOC),'inicio'));
     $map = [1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado',7=>'Domingo'];
@@ -348,6 +341,24 @@ function generarSlotsDisponibles(int $medicoId, int $dias = 28): array {
     return $slots;
 }
 
+function validarNuevoInicio(int $medicoId, string $inicio, ?int $excluirId = null): string {
+    if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $inicio)) throw new Exception('Fecha/hora inválida.');
+    $its = strtotime($inicio);
+    if ($its === false || $its <= time()) throw new Exception('Ese horario ya pasó, elige otro.');
+    if ($its > strtotime('+29 days')) throw new Exception('Solo puedes agendar hasta 4 semanas adelante.');
+    $fecha = substr($inicio, 0, 10);
+    if (fetchOne(query('SELECT id FROM medico_bloqueos WHERE medico_id=? AND ? BETWEEN fecha_desde AND fecha_hasta LIMIT 1','is',[$medicoId,$fecha])))
+        throw new Exception('Ese día no está disponible.');
+    if ($excluirId) {
+        $ocupado = fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND inicio=? AND estado_consulta IN ('agendada','confirmada') AND id<>? LIMIT 1",'isi',[$medicoId,$inicio,$excluirId]));
+    } else {
+        $ocupado = fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND inicio=? AND estado_consulta IN ('agendada','confirmada') LIMIT 1",'is',[$medicoId,$inicio]));
+    }
+    if ($ocupado) throw new Exception('Ese horario ya fue tomado. Elige otro.');
+    $dAbr = ['Mon'=>'Lun','Tue'=>'Mar','Wed'=>'Mié','Thu'=>'Jue','Fri'=>'Vie','Sat'=>'Sáb','Sun'=>'Dom'];
+    return $dAbr[date('D',$its)].' '.date('d/m',$its).' '.date('H:i',$its);
+}
+
 function horariosDisponibles(): void {
     $data = json_decode(file_get_contents('php://input'), true) ?: [];
     $mid = (int)($data['medico_id'] ?? ($_GET['medico_id'] ?? 0));
@@ -365,7 +376,7 @@ function medicoAgenda(): void {
     $st->bind_param('i',$medicoId); $st->execute(); $plantilla = $st->get_result()->fetch_all(MYSQLI_ASSOC);
     $pago = fetchOne(query('SELECT duracion_minutos FROM medico_pago WHERE medico_id=?','i',[$medicoId]));
     $dur = $pago ? (int)$pago['duracion_minutos'] : 30; if ($dur <= 0) $dur = 30;
-    $sc = $db->prepare("SELECT r.id AS reserva_id, r.inicio, r.paciente_id, p.nombre AS paciente, r.estado_consulta, r.motivo FROM reservas r JOIN pacientes p ON p.id=r.paciente_id WHERE r.medico_id=? AND r.inicio IS NOT NULL AND DATE(r.inicio) BETWEEN ? AND ? ORDER BY r.inicio");
+    $sc = $db->prepare("SELECT r.id AS reserva_id, r.inicio, r.paciente_id, p.nombre AS paciente, r.estado_consulta, r.motivo FROM reservas r JOIN pacientes p ON p.id=r.paciente_id WHERE r.medico_id=? AND r.inicio IS NOT NULL AND r.estado_consulta IN ('agendada','confirmada','realizada') AND DATE(r.inicio) BETWEEN ? AND ? ORDER BY r.inicio");
     $sc->bind_param('iss',$medicoId,$desde,$hasta); $sc->execute(); $citas = $sc->get_result()->fetch_all(MYSQLI_ASSOC);
     $sbl = $db->prepare("SELECT id,fecha_desde,fecha_hasta,motivo FROM medico_bloqueos WHERE medico_id=? AND fecha_desde<=? AND fecha_hasta>=? ORDER BY fecha_desde");
     $sbl->bind_param('iss',$medicoId,$hasta,$desde); $sbl->execute(); $bloqueos = $sbl->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -390,6 +401,84 @@ function medicoBloqueoEliminar(): void {
     $st->bind_param('ii',$id,$medicoId); $st->execute();
     if ($db->affected_rows < 1) jsonError('Bloqueo no encontrado');
     jsonOk(['mensaje'=>'Bloqueo eliminado']);
+}
+
+// ── CANCELAR / REPROGRAMAR ────────────────────────────────────────────────────
+function cancelarReservaInterno(mysqli $db, int $rid, array $r, string $nota): void {
+    $ahora = date('Y-m-d H:i:s');
+    if (in_array($r['estado_pago'], ['en_custodia','pagado'], true)) {
+        $u = $db->prepare('UPDATE reservas SET estado_consulta="cancelada", estado_pago="reembolsado", estado_pago_medico="pendiente", reembolsada_en=?, notas_cancelacion=? WHERE id=?');
+        $u->bind_param('ssi',$ahora,$nota,$rid); $u->execute();
+        $monto = (float)$r['monto_total'];
+        $ins = $db->prepare('INSERT INTO transacciones (reserva_id,tipo,monto,descripcion) VALUES (?,"reembolso",?,?)');
+        $ins->bind_param('ids',$rid,$monto,$nota); $ins->execute();
+    } else {
+        $u = $db->prepare('UPDATE reservas SET estado_consulta="cancelada", notas_cancelacion=? WHERE id=?');
+        $u->bind_param('si',$nota,$rid); $u->execute();
+    }
+}
+
+function pacienteCancelarReserva(): void {
+    $pid = checkPaciente(); $data = json_decode(file_get_contents('php://input'), true);
+    $rid = (int)($data['reserva_id'] ?? 0); if (!$rid) jsonError('Falta reserva_id');
+    $db = getDB();
+    $r = fetchOne(query('SELECT id,medico_id,inicio,estado_consulta,estado_pago,monto_total FROM reservas WHERE id=? AND paciente_id=?','ii',[$rid,$pid]));
+    if (!$r) jsonError('Reserva no encontrada');
+    if (!in_array($r['estado_consulta'], ['agendada','confirmada'], true)) jsonError('No se puede cancelar esta cita.');
+    if (empty($r['inicio']) || strtotime($r['inicio']) <= time()) jsonError('La cita ya pasó.');
+    if (strtotime($r['inicio']) - time() < 12*3600) jsonError('No puedes cancelar con menos de 12 horas de anticipación. Contacta a soporte.');
+    cancelarReservaInterno($db, $rid, $r, 'Cancelada por el paciente');
+    $info = fetchOne(query('SELECT m.email AS med_email, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, p.nombre AS paciente, r.horario FROM reservas r JOIN medicos m ON m.id=r.medico_id JOIN pacientes p ON p.id=r.paciente_id WHERE r.id=?','i',[$rid]));
+    if ($info && !empty($info['med_email']))
+        enviarEmail($info['med_email'], $info['medico'], 'Cita cancelada por el paciente',
+            '<p>La cita de <strong>'.htmlspecialchars($info['paciente']).'</strong> del horario <strong>'.htmlspecialchars($info['horario']).'</strong> fue cancelada por el paciente.</p>');
+    jsonOk(['mensaje'=>'Cita cancelada.']);
+}
+
+function medicoCancelarReserva(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $rid = (int)($data['reserva_id'] ?? 0); if (!$rid) jsonError('Falta reserva_id');
+    $motivo = mb_substr(trim((string)($data['motivo'] ?? '')), 0, 200);
+    if ($motivo === '') jsonError('Indica el motivo de la cancelación.');
+    $db = getDB();
+    $r = fetchOne(query('SELECT id,inicio,estado_consulta,estado_pago,monto_total FROM reservas WHERE id=? AND medico_id=?','ii',[$rid,$medicoId]));
+    if (!$r) jsonError('Reserva no encontrada');
+    if (!in_array($r['estado_consulta'], ['agendada','confirmada'], true)) jsonError('No se puede cancelar esta cita.');
+    if (empty($r['inicio']) || strtotime($r['inicio']) <= time()) jsonError('La cita ya pasó.');
+    cancelarReservaInterno($db, $rid, $r, 'Cancelada por el médico: '.$motivo);
+    $info = fetchOne(query('SELECT p.email AS pac_email, p.nombre AS paciente, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, r.horario, r.estado_pago FROM reservas r JOIN medicos m ON m.id=r.medico_id JOIN pacientes p ON p.id=r.paciente_id WHERE r.id=?','i',[$rid]));
+    if ($info && !empty($info['pac_email'])) {
+        $reemb = ($info['estado_pago']==='reembolsado') ? '<p>El pago fue reembolsado.</p>' : '';
+        enviarEmail($info['pac_email'], $info['paciente'], 'Tu cita fue cancelada',
+            '<p>Lamentamos informarte que <strong>'.htmlspecialchars($info['medico']).'</strong> canceló tu cita del <strong>'.htmlspecialchars($info['horario']).'</strong>.</p><p>Motivo: '.htmlspecialchars($motivo).'</p>'.$reemb.'<p>Puedes agendar un nuevo horario en medicvip.org.</p>');
+    }
+    jsonOk(['mensaje'=>'Cita cancelada. Se notificó al paciente.']);
+}
+
+function pacienteReprogramarReserva(): void {
+    $pid = checkPaciente(); $data = json_decode(file_get_contents('php://input'), true);
+    $rid = (int)($data['reserva_id'] ?? 0); if (!$rid) jsonError('Falta reserva_id');
+    $nuevoInicio = (string)($data['inicio'] ?? '');
+    $db = getDB();
+    $r = fetchOne(query('SELECT id,medico_id,inicio,estado_consulta,estado_pago FROM reservas WHERE id=? AND paciente_id=?','ii',[$rid,$pid]));
+    if (!$r) jsonError('Reserva no encontrada');
+    if (!in_array($r['estado_consulta'], ['agendada','confirmada'], true)) jsonError('No se puede reprogramar esta cita.');
+    if (empty($r['inicio']) || strtotime($r['inicio']) <= time()) jsonError('La cita ya pasó.');
+    if (strtotime($r['inicio']) - time() < 12*3600) jsonError('No puedes reprogramar con menos de 12 horas de anticipación. Contacta a soporte.');
+    $horario = validarNuevoInicio((int)$r['medico_id'], $nuevoInicio, $rid);
+    $limite = date('Y-m-d H:i:s', time()+24*3600);
+    if ($r['estado_pago'] === 'pagado') {
+        $u = $db->prepare('UPDATE reservas SET inicio=?, horario=?, estado_consulta="agendada", confirmada_en=NULL, limite_confirmacion=?, estado_pago="en_custodia", estado_pago_medico="pendiente" WHERE id=?');
+    } else {
+        $u = $db->prepare('UPDATE reservas SET inicio=?, horario=?, estado_consulta="agendada", confirmada_en=NULL, limite_confirmacion=? WHERE id=?');
+    }
+    $u->bind_param('sssi',$nuevoInicio,$horario,$limite,$rid); $u->execute();
+    $info = fetchOne(query('SELECT p.email AS pac_email, p.nombre AS paciente, m.email AS med_email, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico FROM reservas r JOIN medicos m ON m.id=r.medico_id JOIN pacientes p ON p.id=r.paciente_id WHERE r.id=?','i',[$rid]));
+    if ($info) {
+        if (!empty($info['pac_email'])) enviarEmail($info['pac_email'],$info['paciente'],'Cita reprogramada','<p>Tu cita con <strong>'.htmlspecialchars($info['medico']).'</strong> quedó reprogramada para <strong>'.htmlspecialchars($horario).'</strong>. El médico la confirmará.</p>');
+        if (!empty($info['med_email'])) enviarEmail($info['med_email'],$info['medico'],'Cita reprogramada — confirmar','<p><strong>'.htmlspecialchars($info['paciente']).'</strong> reprogramó su cita para <strong>'.htmlspecialchars($horario).'</strong>. Confírmala desde tu portal.</p>');
+    }
+    jsonOk(['mensaje'=>'Cita reprogramada.','horario'=>$horario]);
 }
 
 // ── EMAIL ─────────────────────────────────────────────────────────────────────
@@ -893,7 +982,7 @@ function pacientePerfil(): void {
     $pid = checkPaciente(); $db = getDB();
     $perfil = fetchOne(query('SELECT id,nombre,email,telefono,cedula,fecha_nacimiento,genero,ciudad,creado_en FROM pacientes WHERE id=?', 'i', [$pid]));
     $perfil['historial'] = fetchOne(query('SELECT tipo_sangre,alergias,enfermedades_cronicas,medicamentos_actuales,cirugias_previas,fuma,alcohol,peso,estatura,antecedentes_familiares,actualizado_en FROM paciente_historial WHERE paciente_id=?', 'i', [$pid]));
-    $st = $db->prepare('SELECT r.id,r.horario,r.motivo,r.estado_pago,r.estado_consulta,r.sala_video,r.token_acceso,r.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, e.especialidad, cn.diagnostico, cn.indicaciones, cn.notas FROM reservas r JOIN medicos m ON m.id=r.medico_id LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN consulta_notas cn ON cn.reserva_id=r.id WHERE r.paciente_id=? ORDER BY r.creado_en DESC');
+    $st = $db->prepare('SELECT r.id,r.inicio,r.medico_id,r.horario,r.motivo,r.estado_pago,r.estado_consulta,r.sala_video,r.token_acceso,r.creado_en, CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS medico, e.especialidad, cn.diagnostico, cn.indicaciones, cn.notas FROM reservas r JOIN medicos m ON m.id=r.medico_id LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN consulta_notas cn ON cn.reserva_id=r.id WHERE r.paciente_id=? ORDER BY r.creado_en DESC');
     $st->bind_param('i', $pid); $st->execute();
     $perfil['reservas'] = $st->get_result()->fetch_all(MYSQLI_ASSOC);
     $stT = $db->prepare('SELECT id,medicamento,dosis,frecuencia,via,duracion,fecha_inicio,estado,resultado,nota_cierre,fecha_cierre FROM tratamientos WHERE paciente_id=? ORDER BY creado_en DESC');

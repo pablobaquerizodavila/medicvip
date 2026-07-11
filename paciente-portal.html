@@ -86,6 +86,19 @@
   .clinical-box{margin-top:10px;padding:12px 14px;background:var(--green-light);border-radius:10px;font-size:13px;color:var(--green-dark);line-height:1.5}
   .clinical-box strong{color:var(--green-dark)}
   .code-chip{display:inline-block;font-family:monospace;font-size:14px;font-weight:700;letter-spacing:1px;background:var(--cream);border:1px dashed var(--border);border-radius:8px;padding:4px 10px}
+  .btn-red{border-color:var(--red);color:var(--red)}
+  .btn-red:hover{background:var(--red-light)}
+  .slot-btn{padding:6px 14px;border:1px solid var(--border);border-radius:100px;font-size:13px;cursor:pointer;background:transparent;color:var(--muted);font-family:var(--font);transition:all .2s}
+  .slot-btn:hover{border-color:var(--green-mid);color:var(--green)}
+  .slot-btn.picked{background:var(--green-mid);border-color:var(--green-mid);color:var(--white)}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center;padding:20px}
+  .modal-overlay.show{display:flex}
+  .modal-box{background:var(--white);border-radius:18px;width:100%;max-width:460px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.2)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border)}
+  .modal-head h3{font-family:var(--display);font-size:19px;font-weight:400}
+  .modal-x{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);line-height:1}
+  .modal-body-m{padding:20px 24px;overflow-y:auto}
+  .modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:16px 24px;border-top:1px solid var(--border)}
   @media(max-width:768px){.app.show{flex-direction:column}.sidebar{width:100%;height:auto;position:static}.main{padding:20px}.grid2{grid-template-columns:1fr}.reserva-card{flex-direction:column}}
 </style>
 </head>
@@ -231,6 +244,24 @@
       </div>
     </div>
   </main>
+</div>
+
+<div class="modal-overlay" id="reprog-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>Reprogramar cita</h3>
+      <button class="modal-x" onclick="cerrarReprog()">✕</button>
+    </div>
+    <div class="modal-body-m">
+      <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:12px">Elige un nuevo horario · próximas 4 semanas</div>
+      <div id="reprog-slots"><div class="loading">Cargando horarios…</div></div>
+      <div id="reprog-elegido" style="font-size:13px;color:var(--green-dark);margin-top:8px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn" onclick="cerrarReprog()">Cerrar</button>
+      <button class="btn btn-green" onclick="confirmarReprogramar()">Confirmar reprogramación</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -407,6 +438,18 @@ function renderProximas(list) {
            ${r.token_acceso ? `<div style="font-size:12px;color:var(--muted);margin-top:6px">Código de acceso: <span class="code-chip">${esc(r.token_acceso)}</span></div>` : ''}
          </div>`
       : '';
+    const activa = ['agendada','confirmada'].includes(r.estado_consulta);
+    const futura = r.inicio && new Date(String(r.inicio).replace(' ','T')) > new Date();
+    const hay12h = r.inicio && (new Date(String(r.inicio).replace(' ','T')) - new Date()) >= 12*3600*1000;
+    let accionesHtml = '';
+    if (activa && futura && hay12h) {
+      accionesHtml = `<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+           <button class="btn" style="font-size:12px;padding:7px 16px" onclick="abrirReprogramar(${r.id}, ${r.medico_id})">🔄 Reprogramar</button>
+           <button class="btn btn-red" style="font-size:12px;padding:7px 16px" onclick="cancelarReserva(${r.id})">✕ Cancelar</button>
+         </div>`;
+    } else if (activa && futura && !hay12h) {
+      accionesHtml = `<div style="margin-top:10px;font-size:12px;color:var(--muted)">Para cambios con menos de 12 h, contacta a soporte.</div>`;
+    }
     return `
     <div class="reserva-card">
       <div style="flex:1">
@@ -415,6 +458,7 @@ function renderProximas(list) {
         <div style="font-size:13px;color:var(--muted)">📅 ${esc(r.horario || '—')}</div>
         ${r.motivo ? `<div style="font-size:13px;color:var(--muted);margin-top:2px">📋 ${esc(r.motivo)}</div>` : ''}
         ${salaHtml}
+        ${accionesHtml}
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
         <span class="badge ${r.estado_consulta==='confirmada'?'badge-green':'badge-blue'}">${esc(r.estado_consulta||'')}</span>
@@ -496,6 +540,68 @@ async function guardarPerfil() {
     if (json.ok) { showMsg('perfil-msg','✅ Perfil actualizado correctamente','success'); if (pacienteData) Object.assign(pacienteData, payload); }
     else { showMsg('perfil-msg', json.error || 'Error al guardar','error'); }
   } catch(e) { showMsg('perfil-msg','No se pudo conectar','error'); }
+}
+
+// ─── Cancelar / Reprogramar reservas ───────────────────────────
+let _reprogId = null, _reprogMedico = null, _reprogInicio = null;
+
+async function cancelarReserva(id) {
+  if (!confirm('¿Seguro que quieres cancelar esta cita? Si tenías un pago en custodia, será reembolsado.')) return;
+  try {
+    const res  = await fetch(API + '?action=paciente_cancelar_reserva', {method:'POST',headers:authHeaders(),body:JSON.stringify({reserva_id:id})});
+    const json = await res.json();
+    if (!json.ok) { alert(json.error || 'No se pudo cancelar'); return; }
+    loadPerfil();
+  } catch(e) { alert('No se pudo conectar con el servidor'); }
+}
+
+function cerrarReprog() {
+  document.getElementById('reprog-modal').classList.remove('show');
+  _reprogId = null; _reprogMedico = null; _reprogInicio = null;
+}
+
+async function abrirReprogramar(id, medicoId) {
+  _reprogId = id; _reprogMedico = medicoId; _reprogInicio = null;
+  const cont = document.getElementById('reprog-slots');
+  const elegido = document.getElementById('reprog-elegido');
+  if (elegido) elegido.textContent = '';
+  cont.innerHTML = '<div class="loading">Cargando horarios…</div>';
+  document.getElementById('reprog-modal').classList.add('show');
+  try {
+    const res  = await fetch(API + '?action=horarios_disponibles', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medico_id:medicoId})});
+    const json = await res.json();
+    const slots = (json.data) || [];
+    if (!slots.length) { cont.innerHTML = '<p style="color:var(--muted);font-size:14px">Este médico no tiene horarios disponibles en las próximas 4 semanas.</p>'; return; }
+    const grupos = {}; const ordenFechas = [];
+    slots.forEach(s => { if (!grupos[s.fecha]) { grupos[s.fecha] = []; ordenFechas.push(s.fecha); } grupos[s.fecha].push(s); });
+    cont.innerHTML = ordenFechas.map(fecha => {
+      const arr = grupos[fecha];
+      const first = arr[0];
+      const encabezado = (first.label && first.label.indexOf('·') !== -1)
+        ? first.label.split('·')[0].trim()
+        : ((first.dia || '') + ' ' + fecha).trim();
+      const chips = arr.map(s => `<button class="slot-btn" onclick="pickReprog('${s.inicio}', ${JSON.stringify(s.label).replace(/"/g,'&quot;')}, this)">${esc(s.hora)}–${esc(s.fin)}</button>`).join('');
+      return `<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px">${esc(encabezado)}</div><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div></div>`;
+    }).join('');
+  } catch(e) { cont.innerHTML = '<p style="color:var(--red);font-size:14px">No se pudieron cargar los horarios.</p>'; }
+}
+
+function pickReprog(inicio, label, el) {
+  _reprogInicio = inicio;
+  document.querySelectorAll('#reprog-slots .slot-btn').forEach(b => b.classList.remove('picked'));
+  if (el) el.classList.add('picked');
+  const e = document.getElementById('reprog-elegido');
+  if (e) e.textContent = 'Nuevo horario: ' + label;
+}
+
+async function confirmarReprogramar() {
+  if (!_reprogInicio) { alert('Elige un nuevo horario'); return; }
+  try {
+    const res  = await fetch(API + '?action=paciente_reprogramar_reserva', {method:'POST',headers:authHeaders(),body:JSON.stringify({reserva_id:_reprogId, inicio:_reprogInicio})});
+    const json = await res.json();
+    if (!json.ok) { alert(json.error || 'No se pudo reprogramar'); return; }
+    cerrarReprog(); loadPerfil();
+  } catch(e) { alert('No se pudo conectar con el servidor'); }
 }
 
 // Al cargar: si hay token → dashboard; si no → login

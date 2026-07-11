@@ -780,6 +780,7 @@ async function loadReservas() {
           <span class="badge ${r.estado_pago==='pagado'?'badge-green':r.estado_pago==='reembolsado'?'badge-red':r.estado_pago==='en_custodia'?'badge-amber':'badge-blue'}">${r.estado_pago==='en_custodia'?'💰 En custodia':r.estado_pago}</span>
           <span class="badge ${r.estado_consulta==='confirmada'?'badge-green':r.estado_consulta==='no_realizada'?'badge-red':r.estado_consulta==='cancelada'?'badge-red':'badge-blue'}">${r.estado_consulta}</span>
           ${puedeCon?`<button class="btn btn-green" style="font-size:12px;padding:7px 14px" onclick="confirmarConsulta(${r.id})">✓ Confirmar consulta</button>`:''}
+          ${['agendada','confirmada'].includes(r.estado_consulta)?`<button class="btn" style="font-size:12px;padding:7px 14px;border-color:#C0392B;color:#C0392B" onclick="cancelarReservaMedico(${r.id})">✕ Cancelar cita</button>`:''}
           ${r.sala_video ? puedeIniciarVideo(r.horario) ? `<button class="btn-video" onclick="iniciarVideo('${r.sala_video}','${(r.paciente||'').replace(/'/g,'')}')" title="Abrir videollamada">📹 Iniciar videollamada</button>` : `<div style="font-size:11px;color:var(--muted);text-align:center;padding:4px 8px;border:1px dashed var(--border);border-radius:8px;max-width:140px">📹 Video disponible<br>${proximoHorario(r.horario)}</div>` : ''}
           <button class="btn" style="font-size:12px;padding:7px 14px" onclick="verHistorialPaciente(${r.paciente_id})">🩺 Ver historial</button>
           <button class="btn" style="font-size:12px;padding:7px 14px" onclick="abrirNota(${r.id})">📝 Nota clínica</button>
@@ -804,6 +805,20 @@ async function confirmarConsulta(reservaId) {
     } else {
       alert('Error: ' + json.error);
     }
+  } catch(e) { alert('No se pudo conectar con el servidor'); }
+}
+
+async function cancelarReservaMedico(id){
+  const motivo = prompt('Motivo de la cancelación (se enviará al paciente):');
+  if (motivo === null) return;
+  if (!motivo.trim()) { alert('Debes indicar un motivo'); return; }
+  try {
+    const res  = await fetch(API + '?action=medico_cancelar_reserva', {method:'POST', headers: authHeaders(), body: JSON.stringify({reserva_id: id, motivo: motivo.trim()})});
+    const json = await res.json();
+    if (!json.ok) { alert(json.error || 'No se pudo cancelar'); return; }
+    alert('✅ ' + ((json.data && json.data.mensaje) || 'Cita cancelada'));
+    loadReservas();
+    loadDashboard();
   } catch(e) { alert('No se pudo conectar con el servidor'); }
 }
 
