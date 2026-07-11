@@ -812,9 +812,11 @@ async function guardarPerfil() {
     const res  = await fetch(API + '?action=medico_actualizar', {method:'POST',headers:authHeaders(),body:JSON.stringify(payload)});
     const json = await res.json();
     if (json.ok) {
-      showMsg('perfil-msg','✅ Perfil actualizado correctamente','success');
-      // Si se guardó una foto nueva (dataURL), reflejarla de inmediato en el avatar del sidebar.
-      if (payload.foto_base64) { medicoData = {...(medicoData||{}), foto_perfil: payload.foto_base64}; }
+      const avisoFoto = json.data && json.data.foto_aviso;
+      if (avisoFoto) showMsg('perfil-msg','⚠️ '+avisoFoto,'error');
+      else showMsg('perfil-msg','✅ Perfil actualizado correctamente','success');
+      // Solo reflejar la foto nueva en el sidebar si realmente se guardó (sin aviso de error).
+      if (payload.foto_base64 && !avisoFoto) { medicoData = {...(medicoData||{}), foto_perfil: payload.foto_base64}; }
       populateSidebar({...medicoData,...payload});
     }
     else { showMsg('perfil-msg', json.error||'Error al guardar','error'); }

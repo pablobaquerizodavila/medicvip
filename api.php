@@ -814,13 +814,14 @@ function medicoActualizar(): void {
     $v_ban=$data['banco']??null; $v_tip=$data['tipo_cuenta']??null; $v_num=$data['numero_cuenta']??null; $v_ced=$data['cedula_titular']??null; $v_tit=$data['nombre_titular']??null;
     $stmt=$db->prepare('UPDATE medico_pago SET tarifa=COALESCE(?,tarifa),duracion_minutos=COALESCE(?,duracion_minutos),banco=COALESCE(?,banco),tipo_cuenta=COALESCE(?,tipo_cuenta),numero_cuenta=COALESCE(?,numero_cuenta),cedula_titular=COALESCE(?,cedula_titular),nombre_titular=COALESCE(?,nombre_titular) WHERE medico_id=?');
     $stmt->bind_param('disssssi',$v_tar,$v_dur,$v_ban,$v_tip,$v_num,$v_ced,$v_tit,$medicoId); $stmt->execute();
-    if(!empty($data['foto_base64'])){try{$fp=guardarFotoBase64($data['foto_base64'],'update_'.$medicoId);if($fp){$st=$db->prepare('UPDATE medicos SET foto_perfil=? WHERE id=?');$st->bind_param('si',$fp,$medicoId);$st->execute();}}catch(Exception $e){}}
+    $fotoAviso=null;
+    if(!empty($data['foto_base64'])){try{$fp=guardarFotoBase64($data['foto_base64'],'update_'.$medicoId);if($fp){$st=$db->prepare('UPDATE medicos SET foto_perfil=? WHERE id=?');$st->bind_param('si',$fp,$medicoId);$st->execute();}else{$fotoAviso='No se pudo guardar la foto (permisos del servidor de archivos). El resto del perfil sí se actualizó.';}}catch(Exception $e){$fotoAviso='No se pudo guardar la foto: '.$e->getMessage();}}
     if(isset($data['disponibilidad'])&&is_array($data['disponibilidad'])){
         $db->query("DELETE FROM medico_disponibilidad WHERE medico_id=$medicoId");
         $stmt=$db->prepare('INSERT INTO medico_disponibilidad (medico_id,dia_semana,hora) VALUES (?,?,?)');
         foreach($data['disponibilidad'] as $slot) if(!empty($slot['dia'])&&!empty($slot['hora'])){$stmt->bind_param('iss',$medicoId,$slot['dia'],$slot['hora']);$stmt->execute();}
     }
-    $db->commit(); jsonOk(['mensaje'=>'Perfil actualizado correctamente']);
+    $db->commit(); jsonOk(['mensaje'=>'Perfil actualizado correctamente','foto_aviso'=>$fotoAviso]);
 }
 function medicoToggleEstado(): void {
     $medicoId=checkMedico(); $data=json_decode(file_get_contents('php://input'),true);
