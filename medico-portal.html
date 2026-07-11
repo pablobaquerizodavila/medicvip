@@ -318,6 +318,9 @@
           <div class="field"><label>Años de experiencia</label>
             <select id="p-experiencia"><option>Menos de 2 años</option><option>2 – 5 años</option><option>6 – 10 años</option><option>11 – 15 años</option><option>Más de 15 años</option></select>
           </div>
+          <div class="field"><label>Idiomas</label><input type="text" id="p-idiomas" placeholder="Ej. Español, Inglés"></div>
+          <div class="field"><label>Universidad</label><input type="text" id="p-universidad" placeholder="Universidad de pregrado"></div>
+          <div class="field"><label>Postgrado / especialización</label><input type="text" id="p-postgrado" placeholder="Ej. MD, maestría, fellowship"></div>
           <div class="field full"><label>Biografía</label><textarea id="p-biografia" placeholder="Cuéntales a los pacientes sobre ti..."></textarea></div>
         </div>
       </div>
@@ -760,6 +763,9 @@ async function loadPerfil() {
     document.getElementById('p-num-cuenta').value = m.numero_cuenta  || '';
     document.getElementById('p-cedula').value     = m.cedula_titular || '';
     document.getElementById('p-titular').value    = m.nombre_titular || '';
+    document.getElementById('p-idiomas').value    = m.idiomas      || '';
+    document.getElementById('p-universidad').value = m.universidad  || '';
+    document.getElementById('p-postgrado').value  = m.postgrado    || '';
     setSelect('p-ciudad',      m.ciudad);
     setSelect('p-especialidad', m.especialidad);
     setSelect('p-experiencia',  m.anos_experiencia);
@@ -786,6 +792,9 @@ async function guardarPerfil() {
     ciudad:           document.getElementById('p-ciudad').value,
     especialidad:     document.getElementById('p-especialidad').value,
     anos_experiencia: document.getElementById('p-experiencia').value,
+    idiomas:          document.getElementById('p-idiomas').value,
+    universidad:      document.getElementById('p-universidad').value,
+    postgrado:        document.getElementById('p-postgrado').value,
     biografia:        document.getElementById('p-biografia').value,
     tarifa:           document.getElementById('p-tarifa').value,
     duracion_minutos: document.getElementById('p-duracion').value,
