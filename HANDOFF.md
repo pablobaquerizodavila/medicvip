@@ -1,14 +1,31 @@
 # HANDOFF — MedicVIP
 
-**Última sesión:** 2026-07-10  
-**Último commit:** `d6b1454` — feat: editar disponibilidad desde Agenda + horarios de la semana en el card  
+**Última sesión:** 2026-07-11  
+**Último commit:** `c5f4a6c` — fix: dashboard admin contaba pacientes sin cuenta  
 **Rama activa:** `main`  
 **Repo:** https://github.com/pablobaquerizodavila/medicvip  
 **Producción:** https://medicvip.org  
 
 ---
 
-## Qué se hizo en esta sesión (2026-07-10)
+## Qué se hizo en esta sesión (2026-07-11)
+
+Perfil del médico, panel financiero de admin y correcciones. Todo desplegado en medicvip.org, verificado E2E + UI, con datos de prueba limpiados.
+
+- **Foto de perfil editable en el portal** (`c671d5e`) + **fix de raíz**: `uploads/` quedó `pbaquerizo:users` tras el rebuild del NAS y `http` no podía escribir → la foto no se guardaba en silencio. Fix `chown -R http:http uploads` + el backend ahora avisa si la foto falla (`foto_aviso`). Ver [[reference_medicvip_nas_file_perms]].
+- **Campos educativos en el portal** (`f35bc0a`) → luego **Historial educativo dinámico** (`9b2f67e`): card editable (agregar/quitar entradas tipo/institución/título/año), columna JSON `medico_especialidad.educacion`, render público con íconos. Migra universidad/postgrado.
+- **Especialidades / idiomas / experiencia profesional editables** (`b31bd85`): listas dinámicas en el portal; columnas JSON `especialidades`/`idiomas_lista`/`experiencia`; `especialidad` sync = principal; filtro por especialidad **match-any**.
+- **Fix bug encoding UTF-8**: PS 5.1 `Get-Content -Raw` sin `-Encoding UTF8` doble-codifica acentos por el pipeline base64. Ver [[reference_powershell_base64_utf8]].
+- **Fix botón 🚨 Emergencia** (`c876cdd`): faltaba el `<div id="emerg-section">` en pacientes.html.
+- **Mis pagos:** quitada la "Comisión total" (`f343124`) y la columna "Comisión" (`9805dec`).
+- **Panel financiero de admin** (`7668a53`): sección 💰 Finanzas con endpoint `admin_finanzas` (KPIs: bruto cobrado, comisión plataforma, pagado a médicos, en custodia, por cobrar en próximas, reembolsado, ticket promedio; tablas por médico y por mes).
+- **Fix conteo pacientes** (`c5f4a6c`): `admin_stats` contaba filas legadas sin cuenta; ahora cuenta solo registradas (con contraseña). Se borró el registro huérfano de Enrique (id=15, sin datos relacionados; cambio de datos, no de código).
+
+Migraciones de DB aplicadas (no reversibles por git): `medico_especialidad.educacion`, `especialidades`, `idiomas_lista`, `experiencia` (todas TEXT/JSON); reflejadas en `schema.sql`.
+
+---
+
+## Qué se hizo en la sesión previa (2026-07-10)
 
 Ciclo de vida completo del **agendamiento** (además de features previas de esta tanda: cuentas de paciente + historial, expediente clínico Fase 1, recetas descargables, lista/búsqueda de pacientes, gráficas de tendencias y línea de tiempo, códigos de cortesía, backup off-NAS — ver README y `git log`).
 
@@ -87,6 +104,11 @@ Motivación: el rebuild del NAS se llevó `mediconline` porque los snapshots del
 | Restitución de código de cortesía | ✅ al cancelar cita exonerada |
 | Editar disponibilidad desde el portal | ✅ Agenda → "Editar mis horarios" (grid días×bloques) |
 | Card público con horarios de la semana | ✅ agrupados por día (no solo próximo) |
+| Foto de perfil editable (portal) | ✅ recortador + fix perms uploads http:http |
+| Historial educativo dinámico | ✅ card editable + público (JSON `educacion`) |
+| Especialidades/idiomas/experiencia editables | ✅ listas dinámicas + filtro especialidad match-any |
+| Panel financiero de admin | ✅ 💰 Finanzas (admin_finanzas: KPIs + por médico + por mes) |
+| Botón 🚨 Emergencia (pacientes) | ✅ arreglado (faltaba el contenedor HTML) |
 
 ---
 
