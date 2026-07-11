@@ -240,6 +240,20 @@
   </div>
 </div>
 
+<!-- SECCIÓN EMERGENCIA (se muestra con el botón 🚨 Emergencia del nav) -->
+<div id="emerg-section" class="emerg-section" style="padding:32px 40px">
+  <div class="emerg-header-bar">
+    <div class="emerg-title">
+      <div>
+        <h2>🚨 Consultas de emergencia</h2>
+        <p class="emerg-subtitle">Médicos disponibles ahora mismo para atenderte de inmediato por videollamada.</p>
+      </div>
+    </div>
+    <button class="emerg-refresh" onclick="loadEmergencias()">🔄 Actualizar</button>
+  </div>
+  <div id="emerg-grid" class="emerg-grid"></div>
+</div>
+
 <div class="layout">
   <!-- FILTERS SIDEBAR -->
   <aside class="filter-sidebar">
