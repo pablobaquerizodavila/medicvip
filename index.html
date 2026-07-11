@@ -384,6 +384,18 @@
     return Object.keys(g).sort((a,b)=>(ORD[a]||9)-(ORD[b]||9)).map(d => (AB[d]||d)+' '+g[d].sort().join(', ')).join(' · ');
   }
 
+  function educacionHtml(arr){
+    if(!Array.isArray(arr) || !arr.length) return '';
+    const IC = {'Título universitario':'🎓','Postgrado':'📜','Especialización':'🩺','Doctorado':'🎖','Maestría':'📘','Pasantía':'🏥','Curso':'📗','Otro':'📄'};
+    return arr.map(e => {
+      const ic = IC[e.tipo] || '📄';
+      const partes = [e.institucion, e.titulo].filter(x => (x||'').trim()).join(' · ');
+      if(!partes && !((e.anio||'').trim())) return '';
+      const anio = (e.anio||'').trim() ? ` (${e.anio})` : '';
+      return `<div style="font-size:12px;color:var(--muted);margin-top:2px">${ic} ${partes}${anio}</div>`;
+    }).join('');
+  }
+
   async function loadDestacados() {
     try {
       const res  = await fetch(API + '?action=listar_medicos');
@@ -415,7 +427,8 @@
               </div>
             </div>
             <p class="dc-bio">${bio}</p>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Horarios: <strong style="color:var(--ink);font-weight:500">${horariosSemanaHtml(m.disponibilidad)}</strong></div>
+            ${educacionHtml(m.educacion)}
+            <div style="font-size:13px;color:var(--muted);margin:8px 0 16px">Horarios: <strong style="color:var(--ink);font-weight:500">${horariosSemanaHtml(m.disponibilidad)}</strong></div>
             <div class="dc-bottom">
               <div class="dc-price">$${tarifa} <span>/ consulta</span></div>
               <a href="/pacientes.html?v=2" class="dc-btn">Agendar →</a>

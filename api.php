@@ -181,10 +181,14 @@ function listarMedicos(): void {
     $db = getDB();
     $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
+    $se = $db->prepare('SELECT educacion FROM medico_especialidad WHERE medico_id=?');
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
         $slots=$sd->get_result()->fetch_all(MYSQLI_ASSOC);
         $m['disponibilidad']=array_map(fn($s)=>$s['dia_semana'].' '.$s['hora'],$slots);
+        $se->bind_param('i',$m['id']); $se->execute();
+        $eduRow=$se->get_result()->fetch_assoc();
+        $m['educacion']=$eduRow ? (json_decode($eduRow['educacion'] ?: '[]', true) ?: []) : [];
         $sr->bind_param('i',$m['id']); $sr->execute();
         $stats=$sr->get_result()->fetch_assoc();
         $m['total_resenas']     = (int)($stats['total'] ?? 0);
@@ -787,8 +791,9 @@ function checkMedico(): int {
 }
 function medicoPerfil(): void {
     $medicoId=checkMedico(); ensureEmergenciaColumn(); $db=getDB();
-    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.disponible_emergencia,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
+    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.disponible_emergencia,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.educacion,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
     $stmt->bind_param('i',$medicoId); $stmt->execute(); $perfil=fetchOne($stmt);
+    if ($perfil) $perfil['educacion'] = json_decode($perfil['educacion'] ?: '[]', true) ?: [];
     $stmt2=$db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $stmt2->bind_param('i',$medicoId); $stmt2->execute();
     $perfil['disponibilidad']=$stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -820,6 +825,19 @@ function medicoActualizar(): void {
         $db->query("DELETE FROM medico_disponibilidad WHERE medico_id=$medicoId");
         $stmt=$db->prepare('INSERT INTO medico_disponibilidad (medico_id,dia_semana,hora) VALUES (?,?,?)');
         foreach($data['disponibilidad'] as $slot) if(!empty($slot['dia'])&&!empty($slot['hora'])){$stmt->bind_param('iss',$medicoId,$slot['dia'],$slot['hora']);$stmt->execute();}
+    }
+    if (isset($data['educacion']) && is_array($data['educacion'])) {
+        $edu = [];
+        foreach ($data['educacion'] as $e) {
+            if (!is_array($e)) continue;
+            $tipo=trim((string)($e['tipo']??'')); $inst=trim((string)($e['institucion']??''));
+            $tit=trim((string)($e['titulo']??'')); $anio=trim((string)($e['anio']??''));
+            if ($inst==='' && $tit==='' && $anio==='') continue;
+            $edu[] = ['tipo'=>mb_substr($tipo,0,60),'institucion'=>mb_substr($inst,0,120),'titulo'=>mb_substr($tit,0,120),'anio'=>mb_substr($anio,0,10)];
+        }
+        $eduJson = json_encode($edu, JSON_UNESCAPED_UNICODE);
+        $ste = $db->prepare('UPDATE medico_especialidad SET educacion=? WHERE medico_id=?');
+        $ste->bind_param('si',$eduJson,$medicoId); $ste->execute();
     }
     $db->commit(); jsonOk(['mensaje'=>'Perfil actualizado correctamente','foto_aviso'=>$fotoAviso]);
 }

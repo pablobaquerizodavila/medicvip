@@ -344,6 +344,7 @@ async function loadDoctors() {
         languages: m.idiomas || 'Español',
         universidad: m.universidad || null,
         postgrado:   m.postgrado   || null,
+        educacion:   m.educacion || [],
         subespec:    m.subespecialidad || null,
         verified: m.estado === 'activo',
       }));
@@ -417,6 +418,18 @@ function horariosSemanaHtml(dispo){
   return Object.keys(g).sort((a,b)=>(ORD[a]||9)-(ORD[b]||9)).map(d => (AB[d]||d)+' '+g[d].sort().join(', ')).join(' · ');
 }
 
+function educacionHtml(arr){
+  if(!Array.isArray(arr) || !arr.length) return '';
+  const IC = {'Título universitario':'🎓','Postgrado':'📜','Especialización':'🩺','Doctorado':'🎖','Maestría':'📘','Pasantía':'🏥','Curso':'📗','Otro':'📄'};
+  return arr.map(e => {
+    const ic = IC[e.tipo] || '📄';
+    const partes = [e.institucion, e.titulo].filter(x => (x||'').trim()).join(' · ');
+    if(!partes && !((e.anio||'').trim())) return '';
+    const anio = (e.anio||'').trim() ? ` (${e.anio})` : '';
+    return `<div style="font-size:12px;color:var(--muted);margin-top:2px">${ic} ${partes}${anio}</div>`;
+  }).join('');
+}
+
 function renderDoctors(list) {
   const container = document.getElementById('doctors-list');
   if(!list.length) {
@@ -436,8 +449,7 @@ function renderDoctors(list) {
         ${d.reviews > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin:4px 0 6px;cursor:pointer" onclick="verResenas(${d.id},'${d.name.replace(/'/g,"&#39;")}')"><span style="color:#F5C842;font-size:14px">${'★'.repeat(Math.round(d.rating))}${'☆'.repeat(5-Math.round(d.rating))}</span><span style="font-size:13px;color:var(--ink);font-weight:500">${d.rating.toFixed(1)}</span><span style="font-size:12px;color:var(--muted);text-decoration:underline">(${d.reviews} ${d.reviews===1?'reseña':'reseñas'})</span></div>` : '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">Sin reseñas aún</div>'}
         <div style="margin-bottom:6px">
           <div style="font-size:14px;font-weight:500;color:var(--ink)">${d.spec}${d.subespec ? ' · <span style="font-weight:400">'+d.subespec+'</span>' : ''}</div>
-          ${d.universidad ? `<div style="font-size:12px;color:var(--muted);margin-top:2px">🎓 ${d.universidad}</div>` : ''}
-          ${d.postgrado   ? `<div style="font-size:12px;color:var(--muted);margin-top:1px">📜 ${d.postgrado}</div>`   : ''}
+          ${educacionHtml(d.educacion)}
         </div>
         <div class="dc-spec">${d.exp?d.exp+' de experiencia · ':''} ${d.city}</div>
         <div class="dc-meta"><div class="dc-meta-item">🗣 ${d.languages}</div></div>

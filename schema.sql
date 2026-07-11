@@ -31,6 +31,7 @@ CREATE TABLE `medico_especialidad` (
   `idiomas` varchar(100) DEFAULT 'Español',
   `universidad` varchar(200) NOT NULL,
   `postgrado` varchar(200) DEFAULT NULL,
+  `educacion` text DEFAULT NULL,
   `biografia` text NOT NULL,
   PRIMARY KEY (`id`),
   KEY `medico_id` (`medico_id`),
