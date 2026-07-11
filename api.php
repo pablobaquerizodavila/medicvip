@@ -406,6 +406,17 @@ function medicoBloqueoEliminar(): void {
 // ── CANCELAR / REPROGRAMAR ────────────────────────────────────────────────────
 function cancelarReservaInterno(mysqli $db, int $rid, array $r, string $nota): void {
     $ahora = date('Y-m-d H:i:s');
+    // Restituir el uso del código de cortesía si esta cita lo consumió
+    $cu = $db->prepare('SELECT codigo_id FROM codigo_usos WHERE reserva_id=? LIMIT 1');
+    $cu->bind_param('i',$rid); $cu->execute();
+    $uso = $cu->get_result()->fetch_assoc();
+    if ($uso) {
+        $cid = (int)$uso['codigo_id'];
+        $ucod = $db->prepare('UPDATE medico_codigos SET usos_count=GREATEST(usos_count-1,0), estado=IF(estado="agotado","activo",estado) WHERE id=?');
+        $ucod->bind_param('i',$cid); $ucod->execute();
+        $dus = $db->prepare('DELETE FROM codigo_usos WHERE reserva_id=?');
+        $dus->bind_param('i',$rid); $dus->execute();
+    }
     if (in_array($r['estado_pago'], ['en_custodia','pagado'], true)) {
         $u = $db->prepare('UPDATE reservas SET estado_consulta="cancelada", estado_pago="reembolsado", estado_pago_medico="pendiente", reembolsada_en=?, notas_cancelacion=? WHERE id=?');
         $u->bind_param('ssi',$ahora,$nota,$rid); $u->execute();
