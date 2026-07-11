@@ -396,6 +396,11 @@
     }).join('');
   }
 
+  function experienciaHtml(arr){
+    if(!Array.isArray(arr) || !arr.length) return '';
+    return arr.map(e => { const p=[e.cargo,e.institucion,e.periodo].filter(x=>(x||'').trim()).join(' · '); return p?`<div style="font-size:12px;color:var(--muted);margin-top:2px">💼 ${p}</div>`:''; }).join('');
+  }
+
   async function loadDestacados() {
     try {
       const res  = await fetch(API + '?action=listar_medicos');
@@ -423,11 +428,12 @@
               ${avatar}
               <div>
                 <div class="dc-name">${nombre}</div>
-                <div class="dc-spec">${m.especialidad || '—'} · ${m.ciudad || '—'}</div>
+                <div class="dc-spec">${(m.especialidades&&m.especialidades[0])||m.especialidad || '—'} · ${m.ciudad || '—'}</div>
               </div>
             </div>
             <p class="dc-bio">${bio}</p>
             ${educacionHtml(m.educacion)}
+            ${experienciaHtml(m.experiencia)}
             <div style="font-size:13px;color:var(--muted);margin:8px 0 16px">Horarios: <strong style="color:var(--ink);font-weight:500">${horariosSemanaHtml(m.disponibilidad)}</strong></div>
             <div class="dc-bottom">
               <div class="dc-price">$${tarifa} <span>/ consulta</span></div>

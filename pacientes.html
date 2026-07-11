@@ -360,6 +360,9 @@ async function loadDoctors() {
         postgrado:   m.postgrado   || null,
         educacion:   m.educacion || [],
         subespec:    m.subespecialidad || null,
+        especialidades: m.especialidades || [],
+        idiomas_lista:  m.idiomas_lista || [],
+        experiencia:    m.experiencia || [],
         verified: m.estado === 'activo',
       }));
       const maxFee = Math.max(...DOCTORS.map(d => d.fee), 100);
@@ -444,6 +447,11 @@ function educacionHtml(arr){
   }).join('');
 }
 
+function experienciaHtml(arr){
+  if(!Array.isArray(arr) || !arr.length) return '';
+  return arr.map(e => { const p=[e.cargo,e.institucion,e.periodo].filter(x=>(x||'').trim()).join(' · '); return p?`<div style="font-size:12px;color:var(--muted);margin-top:2px">💼 ${p}</div>`:''; }).join('');
+}
+
 function renderDoctors(list) {
   const container = document.getElementById('doctors-list');
   if(!list.length) {
@@ -462,11 +470,12 @@ function renderDoctors(list) {
         </div>
         ${d.reviews > 0 ? `<div style="display:flex;align-items:center;gap:6px;margin:4px 0 6px;cursor:pointer" onclick="verResenas(${d.id},'${d.name.replace(/'/g,"&#39;")}')"><span style="color:#F5C842;font-size:14px">${'★'.repeat(Math.round(d.rating))}${'☆'.repeat(5-Math.round(d.rating))}</span><span style="font-size:13px;color:var(--ink);font-weight:500">${d.rating.toFixed(1)}</span><span style="font-size:12px;color:var(--muted);text-decoration:underline">(${d.reviews} ${d.reviews===1?'reseña':'reseñas'})</span></div>` : '<div style="font-size:12px;color:var(--muted);margin:4px 0 6px">Sin reseñas aún</div>'}
         <div style="margin-bottom:6px">
-          <div style="font-size:14px;font-weight:500;color:var(--ink)">${d.spec}${d.subespec ? ' · <span style="font-weight:400">'+d.subespec+'</span>' : ''}</div>
+          <div style="font-size:14px;font-weight:500;color:var(--ink)">${(d.especialidades&&d.especialidades[0]) || d.spec}${d.subespec ? ' · <span style="font-weight:400">'+d.subespec+'</span>' : ''}${(d.especialidades&&d.especialidades.length>1)?d.especialidades.slice(1).map(e=>`<span style="display:inline-block;font-size:11px;background:#F1EFEB;color:var(--muted);padding:2px 8px;border-radius:100px;margin:2px 4px 0 0">${e}</span>`).join(''):''}</div>
           ${educacionHtml(d.educacion)}
+          ${experienciaHtml(d.experiencia)}
         </div>
         <div class="dc-spec">${d.exp?d.exp+' de experiencia · ':''} ${d.city}</div>
-        <div class="dc-meta"><div class="dc-meta-item">🗣 ${d.languages}</div></div>
+        <div class="dc-meta"><div class="dc-meta-item">🗣 ${(d.idiomas_lista&&d.idiomas_lista.length)?d.idiomas_lista.join(' · '):d.languages}</div></div>
         <p class="dc-bio">${d.bio}</p>
         <div style="font-size:13px;color:var(--muted)">Horarios: <strong style="color:var(--ink)">${horariosSemanaHtml(d.disponibilidad)}</strong></div>
       </div>

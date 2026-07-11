@@ -174,26 +174,30 @@ function registrarMedico(): void {
 function listarMedicos(): void {
     ensureResenasTable();
     $spec = $_GET['especialidad'] ?? null;
-    $stmt = ($spec && $spec!=='Todos')
-        ? query('SELECT * FROM v_medicos_activos WHERE especialidad=? ORDER BY id DESC','s',[$spec])
-        : query('SELECT * FROM v_medicos_activos ORDER BY id DESC');
-    $medicos = fetchAll($stmt);
+    $medicos = fetchAll(query('SELECT * FROM v_medicos_activos ORDER BY id DESC'));
     $db = getDB();
     $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
-    $se = $db->prepare('SELECT educacion FROM medico_especialidad WHERE medico_id=?');
+    $se = $db->prepare('SELECT educacion,especialidades,idiomas_lista,experiencia FROM medico_especialidad WHERE medico_id=?');
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
         $slots=$sd->get_result()->fetch_all(MYSQLI_ASSOC);
         $m['disponibilidad']=array_map(fn($s)=>$s['dia_semana'].' '.$s['hora'],$slots);
         $se->bind_param('i',$m['id']); $se->execute();
-        $eduRow=$se->get_result()->fetch_assoc();
-        $m['educacion']=$eduRow ? (json_decode($eduRow['educacion'] ?: '[]', true) ?: []) : [];
+        $er=$se->get_result()->fetch_assoc();
+        $m['educacion']      = $er ? (json_decode($er['educacion'] ?: '[]', true) ?: []) : [];
+        $m['especialidades'] = $er ? (json_decode($er['especialidades'] ?: '[]', true) ?: []) : [];
+        $m['idiomas_lista']  = $er ? (json_decode($er['idiomas_lista'] ?: '[]', true) ?: []) : [];
+        $m['experiencia']    = $er ? (json_decode($er['experiencia'] ?: '[]', true) ?: []) : [];
         $sr->bind_param('i',$m['id']); $sr->execute();
         $stats=$sr->get_result()->fetch_assoc();
         $m['total_resenas']     = (int)($stats['total'] ?? 0);
         $m['estrella_promedio'] = (float)($stats['promedio'] ?? 0);
         $sl=generarSlotsDisponibles($m['id'],28); $m['proximo_disponible']=$sl?$sl[0]['label']:null;
+    }
+    unset($m);
+    if ($spec && $spec !== 'Todos') {
+        $medicos = array_values(array_filter($medicos, fn($m) => in_array($spec, $m['especialidades'], true) || ($m['especialidad'] ?? '') === $spec));
     }
     jsonOk($medicos);
 }
@@ -791,9 +795,14 @@ function checkMedico(): int {
 }
 function medicoPerfil(): void {
     $medicoId=checkMedico(); ensureEmergenciaColumn(); $db=getDB();
-    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.disponible_emergencia,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.educacion,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
+    $stmt=$db->prepare('SELECT m.id,m.titulo,m.nombre,m.apellido,m.email,m.telefono,m.ciudad,m.genero,m.licencia,m.estado,m.foto_perfil,m.disponible_emergencia,m.creado_en,e.especialidad,e.subespecialidad,e.anos_experiencia,e.idiomas,e.universidad,e.postgrado,e.educacion,e.especialidades,e.idiomas_lista,e.experiencia,e.biografia,p.tarifa,p.duracion_minutos,p.banco,p.tipo_cuenta,p.numero_cuenta,p.cedula_titular,p.nombre_titular,p.plan_liquidacion,p.frecuencia_pago FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id LEFT JOIN medico_pago p ON p.medico_id=m.id WHERE m.id=?');
     $stmt->bind_param('i',$medicoId); $stmt->execute(); $perfil=fetchOne($stmt);
-    if ($perfil) $perfil['educacion'] = json_decode($perfil['educacion'] ?: '[]', true) ?: [];
+    if ($perfil) {
+        $perfil['educacion']      = json_decode($perfil['educacion'] ?: '[]', true) ?: [];
+        $perfil['especialidades'] = json_decode($perfil['especialidades'] ?: '[]', true) ?: [];
+        $perfil['idiomas_lista']  = json_decode($perfil['idiomas_lista'] ?: '[]', true) ?: [];
+        $perfil['experiencia']    = json_decode($perfil['experiencia'] ?: '[]', true) ?: [];
+    }
     $stmt2=$db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $stmt2->bind_param('i',$medicoId); $stmt2->execute();
     $perfil['disponibilidad']=$stmt2->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -838,6 +847,23 @@ function medicoActualizar(): void {
         $eduJson = json_encode($edu, JSON_UNESCAPED_UNICODE);
         $ste = $db->prepare('UPDATE medico_especialidad SET educacion=? WHERE medico_id=?');
         $ste->bind_param('si',$eduJson,$medicoId); $ste->execute();
+    }
+    if (isset($data['especialidades']) && is_array($data['especialidades'])) {
+        $esp=[]; foreach($data['especialidades'] as $s){ $s=trim((string)$s); if($s!=='') $esp[]=mb_substr($s,0,80); }
+        $esp=array_values($esp);
+        $ej=json_encode($esp,JSON_UNESCAPED_UNICODE);
+        $s1=$db->prepare('UPDATE medico_especialidad SET especialidades=? WHERE medico_id=?'); $s1->bind_param('si',$ej,$medicoId); $s1->execute();
+        if (!empty($esp)) { $prin=$esp[0]; $s2=$db->prepare('UPDATE medico_especialidad SET especialidad=? WHERE medico_id=?'); $s2->bind_param('si',$prin,$medicoId); $s2->execute(); }
+    }
+    if (isset($data['idiomas_lista']) && is_array($data['idiomas_lista'])) {
+        $idi=[]; foreach($data['idiomas_lista'] as $s){ $s=trim((string)$s); if($s!=='') $idi[]=mb_substr($s,0,40); }
+        $idi=array_values($idi); $ij=json_encode($idi,JSON_UNESCAPED_UNICODE); $istr=implode(', ',$idi);
+        $s3=$db->prepare('UPDATE medico_especialidad SET idiomas_lista=?, idiomas=? WHERE medico_id=?'); $s3->bind_param('ssi',$ij,$istr,$medicoId); $s3->execute();
+    }
+    if (isset($data['experiencia']) && is_array($data['experiencia'])) {
+        $exp=[]; foreach($data['experiencia'] as $e){ if(!is_array($e))continue; $c=trim((string)($e['cargo']??'')); $in=trim((string)($e['institucion']??'')); $p=trim((string)($e['periodo']??'')); if($c===''&&$in===''&&$p==='')continue; $exp[]=['cargo'=>mb_substr($c,0,100),'institucion'=>mb_substr($in,0,120),'periodo'=>mb_substr($p,0,40)]; }
+        $xj=json_encode($exp,JSON_UNESCAPED_UNICODE);
+        $s4=$db->prepare('UPDATE medico_especialidad SET experiencia=? WHERE medico_id=?'); $s4->bind_param('si',$xj,$medicoId); $s4->execute();
     }
     $db->commit(); jsonOk(['mensaje'=>'Perfil actualizado correctamente','foto_aviso'=>$fotoAviso]);
 }

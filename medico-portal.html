@@ -312,13 +312,11 @@
       <div class="card">
         <div class="card-title">Especialidad y experiencia</div>
         <div class="grid2">
-          <div class="field"><label>Especialidad</label>
-            <select id="p-especialidad"><option>Medicina general</option><option>Pediatría</option><option>Cardiología</option><option>Dermatología</option><option>Psicología clínica</option><option>Ginecología y obstetricia</option><option>Traumatología</option><option>Nutrición y dietética</option><option>Oftalmología</option><option>Neurología</option><option>Endocrinología</option><option>Otra</option></select>
-          </div>
+          <div class="field full"><label>Especialidades</label><div id="esp-lista"></div><button type="button" class="btn" onclick="espAgregar()" style="margin-top:4px">➕ Agregar especialidad</button></div>
           <div class="field"><label>Años de experiencia</label>
             <select id="p-experiencia"><option>Menos de 2 años</option><option>2 – 5 años</option><option>6 – 10 años</option><option>11 – 15 años</option><option>Más de 15 años</option></select>
           </div>
-          <div class="field"><label>Idiomas</label><input type="text" id="p-idiomas" placeholder="Ej. Español, Inglés"></div>
+          <div class="field full"><label>Idiomas</label><div id="idi-lista"></div><button type="button" class="btn" onclick="idiAgregar()" style="margin-top:4px">➕ Agregar idioma</button></div>
           <div class="field full"><label>Biografía</label><textarea id="p-biografia" placeholder="Cuéntales a los pacientes sobre ti..."></textarea></div>
         </div>
       </div>
@@ -327,6 +325,12 @@
         <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Agrega tus títulos, postgrados, especializaciones, pasantías y cursos. Aparecen en tu perfil público.</p>
         <div id="edu-lista"></div>
         <button type="button" class="btn" onclick="eduAgregar()">➕ Agregar formación</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Experiencia profesional</div>
+        <p style="font-size:13px;color:var(--muted);margin:0 0 12px">Cargos y lugares donde has trabajado. Aparecen en tu perfil público.</p>
+        <div id="exp-lista"></div>
+        <button type="button" class="btn" onclick="expAgregar()">➕ Agregar experiencia</button>
       </div>
       <div class="card">
         <div class="card-title">Tarifa y disponibilidad</div>
@@ -474,6 +478,7 @@
 <script>
 const API = '/api.php';
 const EDU_TIPOS = ['Título universitario','Postgrado','Especialización','Doctorado','Maestría','Pasantía','Curso','Otro'];
+const CAT_ESPECIALIDADES = ['Medicina general','Pediatría','Cardiología','Dermatología','Psicología clínica','Ginecología y obstetricia','Traumatología','Nutrición y dietética','Oftalmología','Neurología','Endocrinología','Otra'];
 let medicoData = null;
 let medicoToken = localStorage.getItem('medico_token') || '';
 let medicoId    = localStorage.getItem('medico_id')    || '';
@@ -771,6 +776,33 @@ function eduSet(i,k,v){ if(_educacion[i]) _educacion[i][k]=v; }
 function eduAgregar(){ _educacion.push({tipo:'Título universitario',institucion:'',titulo:'',anio:''}); renderEducacion(); }
 function eduQuitar(i){ _educacion.splice(i,1); renderEducacion(); }
 
+let _especialidades=[], _idiomas=[];
+function renderEsp(){ const c=document.getElementById('esp-lista'); if(!c)return;
+  c.innerHTML=_especialidades.map((v,i)=>`<div style="display:flex;gap:8px;margin-bottom:8px">
+    <select style="flex:1" onchange="_especialidades[${i}]=this.value">${CAT_ESPECIALIDADES.map(o=>`<option${o===v?' selected':''}>${o}</option>`).join('')}</select>
+    <button type="button" class="btn" onclick="espQuitar(${i})" style="border-color:#C0392B;color:#C0392B;padding:8px 12px">✕</button></div>`).join('')
+    || '<p style="font-size:13px;color:var(--muted)">Agrega tu(s) especialidad(es). La primera es la principal.</p>'; }
+function espAgregar(){ _especialidades.push(CAT_ESPECIALIDADES[0]); renderEsp(); }
+function espQuitar(i){ _especialidades.splice(i,1); renderEsp(); }
+function renderIdi(){ const c=document.getElementById('idi-lista'); if(!c)return;
+  c.innerHTML=_idiomas.map((v,i)=>`<div style="display:flex;gap:8px;margin-bottom:8px">
+    <input type="text" style="flex:1" value="${(v||'').replace(/"/g,'&quot;')}" oninput="_idiomas[${i}]=this.value" placeholder="Ej. Español">
+    <button type="button" class="btn" onclick="idiQuitar(${i})" style="border-color:#C0392B;color:#C0392B;padding:8px 12px">✕</button></div>`).join('')
+    || '<p style="font-size:13px;color:var(--muted)">Agrega los idiomas en que atiendes.</p>'; }
+function idiAgregar(){ _idiomas.push(''); renderIdi(); }
+function idiQuitar(i){ _idiomas.splice(i,1); renderIdi(); }
+
+let _experiencia=[];
+function renderExp(){ const c=document.getElementById('exp-lista'); if(!c)return;
+  c.innerHTML=_experiencia.map((e,i)=>`<div style="display:grid;grid-template-columns:1.2fr 1.3fr 0.9fr auto;gap:8px;align-items:end;margin-bottom:10px">
+    <div class="field" style="margin:0"><label>Cargo / rol</label><input type="text" value="${(e.cargo||'').replace(/"/g,'&quot;')}" oninput="_experiencia[${i}].cargo=this.value"></div>
+    <div class="field" style="margin:0"><label>Institución</label><input type="text" value="${(e.institucion||'').replace(/"/g,'&quot;')}" oninput="_experiencia[${i}].institucion=this.value"></div>
+    <div class="field" style="margin:0"><label>Período</label><input type="text" value="${(e.periodo||'').replace(/"/g,'&quot;')}" oninput="_experiencia[${i}].periodo=this.value" placeholder="2018–2022"></div>
+    <button type="button" class="btn" onclick="expQuitar(${i})" style="border-color:#C0392B;color:#C0392B;padding:8px 12px">✕</button></div>`).join('')
+    || '<p style="font-size:13px;color:var(--muted)">Sin experiencia registrada.</p>'; }
+function expAgregar(){ _experiencia.push({cargo:'',institucion:'',periodo:''}); renderExp(); }
+function expQuitar(i){ _experiencia.splice(i,1); renderExp(); }
+
 async function loadPerfil() {
   try {
     const res  = await fetch(API + '?action=medico_perfil', {headers: authHeaders()});
@@ -785,11 +817,12 @@ async function loadPerfil() {
     document.getElementById('p-num-cuenta').value = m.numero_cuenta  || '';
     document.getElementById('p-cedula').value     = m.cedula_titular || '';
     document.getElementById('p-titular').value    = m.nombre_titular || '';
-    document.getElementById('p-idiomas').value    = m.idiomas      || '';
     _educacion = Array.isArray(m.educacion) ? m.educacion.map(x=>({tipo:x.tipo||'',institucion:x.institucion||'',titulo:x.titulo||'',anio:x.anio||''})) : [];
     renderEducacion();
+    _especialidades = Array.isArray(m.especialidades)&&m.especialidades.length ? m.especialidades.slice() : (m.especialidad?[m.especialidad]:[]); renderEsp();
+    _idiomas = Array.isArray(m.idiomas_lista)&&m.idiomas_lista.length ? m.idiomas_lista.slice() : (m.idiomas?String(m.idiomas).split(',').map(s=>s.trim()).filter(Boolean):[]); renderIdi();
+    _experiencia = Array.isArray(m.experiencia) ? m.experiencia.map(x=>({cargo:x.cargo||'',institucion:x.institucion||'',periodo:x.periodo||''})) : []; renderExp();
     setSelect('p-ciudad',      m.ciudad);
-    setSelect('p-especialidad', m.especialidad);
     setSelect('p-experiencia',  m.anos_experiencia);
     setSelect('p-banco',        m.banco);
     setSelect('p-tipo-cuenta',  m.tipo_cuenta);
@@ -812,9 +845,10 @@ async function guardarPerfil() {
     apellido:         document.getElementById('p-apellido').value,
     telefono:         document.getElementById('p-telefono').value,
     ciudad:           document.getElementById('p-ciudad').value,
-    especialidad:     document.getElementById('p-especialidad').value,
     anos_experiencia: document.getElementById('p-experiencia').value,
-    idiomas:          document.getElementById('p-idiomas').value,
+    especialidades:   _especialidades.filter(s=>(s||'').trim()),
+    idiomas_lista:    _idiomas.filter(s=>(s||'').trim()),
+    experiencia:      _experiencia.filter(e=>(e.cargo||'').trim()||(e.institucion||'').trim()||(e.periodo||'').trim()),
     educacion:        _educacion.filter(e => (e.institucion||'').trim() || (e.titulo||'').trim() || (e.anio||'').trim()),
     biografia:        document.getElementById('p-biografia').value,
     tarifa:           document.getElementById('p-tarifa').value,
