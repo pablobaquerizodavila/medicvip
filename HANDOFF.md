@@ -1,7 +1,7 @@
 # HANDOFF — MedicVIP
 
 **Última sesión:** 2026-07-10  
-**Último commit:** `b9b7608` — feat: restituir uso de código de cortesía al cancelar  
+**Último commit:** `d6b1454` — feat: editar disponibilidad desde Agenda + horarios de la semana en el card  
 **Rama activa:** `main`  
 **Repo:** https://github.com/pablobaquerizodavila/medicvip  
 **Producción:** https://medicvip.org  
@@ -26,6 +26,11 @@ Ciclo de vida completo del **agendamiento** (además de features previas de esta
 
 ### Restituir uso de código de cortesía al cancelar (commit `b9b7608`)
 - En `cancelarReservaInterno` (paciente y médico): si la cita consumió un código, decrementa `usos_count` (GREATEST 0), reactiva `agotado→activo` (`revocado` sigue revocado) y borra la fila de `codigo_usos`. Reprogramar NO restituye.
+
+### Editar disponibilidad + horarios de la semana en el card (commit `d6b1454`)
+- **Editor de disponibilidad en el portal:** el médico fijaba sus horarios solo al registrarse; ahora los edita desde **Agenda** con el botón "⚙️ Editar mis horarios de atención" (grid días×bloques 07:00–19:00, precargado). Endpoint dedicado `medico_disponibilidad_guardar` (DELETE+INSERT de `medico_disponibilidad`, valida día del enum + hora, dedup) — no toca otros campos del perfil.
+- **Card público:** `pacientes.html` e `index.html` muestran los horarios de la semana agrupados por día (helper `horariosSemanaHtml`) en vez de solo "próximo disponible".
+- **Fix:** `ORDER BY FIELD` de `listarMedicos` usaba "Miercoles"/"Sabado" sin acento → no casaban con el enum; corregido.
 
 **Verificación:** todo probado E2E contra la API interna (curl + probe SQL), datos de prueba limpiados. Deploys con `php -l` limpio y `chown http:http` + `chmod 644`.
 
@@ -80,6 +85,8 @@ Motivación: el rebuild del NAS se llevó `mediconline` porque los snapshots del
 | Agenda por fechas (`inicio` + bloqueos) | ✅ OK (calendario semanal del médico) |
 | Cancelar / reprogramar citas | ✅ OK (paciente autoservicio 12 h + médico con motivo) |
 | Restitución de código de cortesía | ✅ al cancelar cita exonerada |
+| Editar disponibilidad desde el portal | ✅ Agenda → "Editar mis horarios" (grid días×bloques) |
+| Card público con horarios de la semana | ✅ agrupados por día (no solo próximo) |
 
 ---
 
