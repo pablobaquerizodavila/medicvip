@@ -526,7 +526,9 @@ function renderVitales(){
       </table>
     </div>` : emptyBox('📈','Sin registros de signos vitales');
 
+  const vitAsc = [...vit].reverse();
   document.getElementById('tab-vitales').innerHTML = `
+    ${renderTendencias(vitAsc)}
     <div class="card">
       <div class="card-head">
         <div class="card-title">Signos vitales <span class="dim">${vit.length}</span></div>
@@ -534,6 +536,49 @@ function renderVitales(){
       </div>
       ${tabla}
     </div>`;
+}
+
+function renderTendencias(vitAsc){
+  const charts = [];
+  const push = (title, unit, keys, colors, normalFn) => {
+    const recs = vitAsc.filter(v => v[keys[0]]!==null && v[keys[0]]!==undefined && v[keys[0]]!=='');
+    if (recs.length < 2) return;
+    const series = keys.map((k,i)=>({color:colors[i], pts: recs.map(v => (v[k]!==null&&v[k]!==undefined&&v[k]!=='') ? Number(v[k]) : null)}));
+    charts.push(_svgLine({title, unit, series, normalFn}));
+  };
+  push('Presión arterial','mmHg',['presion_sistolica','presion_diastolica'],['#C0392B','#1565C0'], v=>v>=140);
+  push('Peso','kg',['peso'],['#1565C0']);
+  push('Glucosa','mg/dL',['glucosa'],['#1565C0'], v=>v>=140);
+  push('Frecuencia cardíaca','lpm',['frecuencia_cardiaca'],['#1565C0']);
+  const imc = vitAsc.map(v => (v.peso && v.estatura) ? Math.round((Number(v.peso)/Math.pow(Number(v.estatura)/100,2))*10)/10 : null).filter(x=>x!==null);
+  if (imc.length >= 2) charts.push(_svgLine({title:'IMC', unit:'kg/m²', series:[{color:'#1D9E75', pts:imc}]}));
+  if (!charts.length) return '';
+  return `<div class="card"><div class="card-head"><div class="card-title">📈 Tendencias</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px">${charts.join('')}</div></div>`;
+}
+
+function _svgLine(cfg){
+  const W=260,H=116,pl=34,pr=30,pt=10,pb=20, iw=W-pl-pr, ih=H-pt-pb;
+  const vals=cfg.series.flatMap(s=>s.pts.filter(v=>v!==null&&!isNaN(v)));
+  if(vals.length<2) return '';
+  let min=Math.min(...vals), max=Math.max(...vals); const rg=(max-min)||1; min-=rg*0.15; max+=rg*0.15;
+  const n=Math.max(...cfg.series.map(s=>s.pts.length));
+  const X=i=> pl + (n<=1?iw/2:(iw*i/(n-1)));
+  const Y=v=> pt + ih - ((v-min)/(max-min))*ih;
+  let g='';
+  cfg.series.forEach(s=>{
+    let d='',started=false;
+    s.pts.forEach((v,i)=>{ if(v===null||isNaN(v)){started=false;return;} d+=(started?' L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1); started=true; });
+    g+=`<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.pts.forEach((v,i)=>{ if(v===null||isNaN(v))return; const last=(i===s.pts.length-1); const out=cfg.normalFn&&cfg.normalFn(v); g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="${last?3.4:2.4}" fill="${out?'#C0392B':s.color}"/>`; });
+    let lastV=null,lastI=-1; s.pts.forEach((v,i)=>{ if(v!==null&&!isNaN(v)){lastV=v;lastI=i;} });
+    if(lastV!==null){ g+=`<text x="${(X(lastI)+4).toFixed(1)}" y="${(Y(lastV)+3).toFixed(1)}" font-size="11" fill="${s.color}" font-weight="700">${lastV}</text>`; }
+  });
+  g+=`<text x="2" y="${(pt+8)}" font-size="9" fill="#69707A">${Math.round(max)}</text><text x="2" y="${(pt+ih)}" font-size="9" fill="#69707A">${Math.round(min)}</text>`;
+  return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;background:var(--white)">
+    <div style="font-size:12.5px;font-weight:600;margin-bottom:2px">${cfg.title} <span style="color:var(--muted);font-weight:400;font-size:11px">${cfg.unit||''}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;overflow:visible">${g}</svg>
+  </div>`;
 }
 
 /* ===== Documentos ===== */
