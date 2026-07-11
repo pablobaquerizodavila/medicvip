@@ -173,10 +173,14 @@ function listarMedicos(): void {
     $db = getDB();
     $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"),hora');
     $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
+    $sh = $db->prepare("SELECT horario FROM reservas WHERE medico_id=? AND estado_consulta NOT IN ('cancelada','no_realizada')");
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
         $slots=$sd->get_result()->fetch_all(MYSQLI_ASSOC);
         $m['disponibilidad']=array_map(fn($s)=>$s['dia_semana'].' '.$s['hora'],$slots);
+        $sh->bind_param('i',$m['id']); $sh->execute();
+        $ocupados=array_column($sh->get_result()->fetch_all(MYSQLI_ASSOC),'horario');
+        if ($ocupados) $m['disponibilidad']=array_values(array_diff($m['disponibilidad'],$ocupados));
         $sr->bind_param('i',$m['id']); $sr->execute();
         $stats=$sr->get_result()->fetch_assoc();
         $m['total_resenas']     = (int)($stats['total'] ?? 0);
@@ -193,6 +197,9 @@ function crearReserva(): void {
 
     $pacienteId = checkPaciente();
     $db  = getDB();
+    // No permitir doble reserva del mismo médico a la misma hora
+    if (fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND horario=? AND estado_consulta NOT IN ('cancelada','no_realizada') LIMIT 1", 'is', [(int)$data['medico_id'], (string)$data['horario']])))
+        throw new Exception('Ese horario ya está reservado con este médico. Por favor elige otro.');
     $pac = fetchOne(query('SELECT nombre,email FROM pacientes WHERE id=?','i',[$pacienteId]));
     $data['nombre_paciente'] = $pac['nombre'];
     $data['email_paciente']  = $pac['email'];
