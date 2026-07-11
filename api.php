@@ -77,6 +77,7 @@ try {
         case 'admin_estado':         adminEstado();          break;
         case 'admin_reservas':       adminReservas();        break;
         case 'admin_stats':          adminStats();           break;
+        case 'admin_finanzas':       adminFinanzas();        break;
         case 'medico_login':         medicoLogin();          break;
         case 'medico_perfil':        medicoPerfil();         break;
         case 'medico_actualizar':    medicoActualizar();     break;
@@ -764,6 +765,38 @@ function adminStats(): void {
     foreach(['total_medicos'=>'SELECT COUNT(*) FROM medicos','medicos_activos'=>"SELECT COUNT(*) FROM medicos WHERE estado='activo'",'medicos_pendientes'=>"SELECT COUNT(*) FROM medicos WHERE estado='pendiente'",'total_reservas'=>'SELECT COUNT(*) FROM reservas','total_pacientes'=>'SELECT COUNT(*) FROM pacientes','ingresos_totales'=>'SELECT IFNULL(SUM(comision),0) FROM reservas WHERE estado_pago="pagado"'] as $k=>$sql)
         { $r=$db->query($sql)->fetch_row(); $s[$k]=$r[0]; }
     jsonOk($s);
+}
+function adminFinanzas(): void {
+    checkAdmin(); $db=getDB();
+    $resumen = $db->query("SELECT
+        IFNULL(SUM(CASE WHEN estado_pago='pagado' THEN monto_total END),0) AS bruto_cobrado,
+        IFNULL(SUM(CASE WHEN estado_pago='pagado' THEN comision END),0) AS comision_plataforma,
+        IFNULL(SUM(CASE WHEN estado_pago='pagado' THEN monto_medico END),0) AS pagado_medicos,
+        IFNULL(SUM(CASE WHEN estado_pago='pagado' THEN 1 ELSE 0 END),0) AS consultas_cobradas,
+        IFNULL(SUM(CASE WHEN estado_pago='en_custodia' THEN monto_total END),0) AS en_custodia,
+        IFNULL(SUM(CASE WHEN estado_consulta='agendada' AND inicio IS NOT NULL AND inicio>NOW() THEN monto_total END),0) AS por_cobrar,
+        IFNULL(SUM(CASE WHEN estado_consulta='agendada' AND inicio IS NOT NULL AND inicio>NOW() THEN 1 ELSE 0 END),0) AS proximas_count,
+        IFNULL(SUM(CASE WHEN estado_pago='reembolsado' THEN monto_total END),0) AS reembolsado,
+        IFNULL(SUM(CASE WHEN estado_pago='exonerado' THEN 1 ELSE 0 END),0) AS cortesias
+      FROM reservas")->fetch_assoc();
+    $cc = (int)$resumen['consultas_cobradas'];
+    $resumen['ticket_promedio'] = $cc>0 ? round(((float)$resumen['bruto_cobrado'])/$cc, 2) : 0;
+    $porMedico = $db->query("SELECT m.id, CONCAT(m.titulo,' ',m.nombre,' ',m.apellido) AS medico,
+        SUM(CASE WHEN r.estado_pago='pagado' THEN 1 ELSE 0 END) AS consultas_cobradas,
+        IFNULL(SUM(CASE WHEN r.estado_pago='pagado' THEN r.monto_total END),0) AS bruto_cobrado,
+        IFNULL(SUM(CASE WHEN r.estado_pago='pagado' THEN r.comision END),0) AS comision_generada,
+        IFNULL(SUM(CASE WHEN r.estado_pago='pagado' THEN r.monto_medico END),0) AS neto_ganado,
+        IFNULL(SUM(CASE WHEN r.estado_pago='en_custodia' THEN r.monto_total END),0) AS en_custodia,
+        IFNULL(SUM(CASE WHEN r.estado_consulta='agendada' AND r.inicio IS NOT NULL AND r.inicio>NOW() THEN r.monto_total END),0) AS por_cobrar
+      FROM medicos m LEFT JOIN reservas r ON r.medico_id=m.id
+      GROUP BY m.id HAVING (consultas_cobradas>0 OR en_custodia>0 OR por_cobrar>0)
+      ORDER BY neto_ganado DESC")->fetch_all(MYSQLI_ASSOC);
+    $porMes = $db->query("SELECT DATE_FORMAT(confirmada_en,'%Y-%m') AS mes,
+        IFNULL(SUM(monto_total),0) AS bruto, IFNULL(SUM(comision),0) AS comision, IFNULL(SUM(monto_medico),0) AS neto
+      FROM reservas
+      WHERE estado_pago='pagado' AND confirmada_en IS NOT NULL AND confirmada_en>=DATE_SUB(CURDATE(),INTERVAL 6 MONTH)
+      GROUP BY mes ORDER BY mes DESC")->fetch_all(MYSQLI_ASSOC);
+    jsonOk(['resumen'=>$resumen, 'por_medico'=>$porMedico, 'por_mes'=>$porMes]);
 }
 
 // ── PORTAL MÉDICO ─────────────────────────────────────────────────────────────

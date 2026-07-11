@@ -167,6 +167,7 @@
       <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">📊</span> Dashboard</div>
       <div class="nav-item" onclick="showSection('medicos',this)"><span class="nav-icon">👨‍⚕️</span> Médicos</div>
       <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Reservas</div>
+      <div class="nav-item" onclick="showSection('finanzas',this)"><span class="nav-icon">💰</span> Finanzas</div>
     </div>
     <div style="position:absolute;bottom:0;left:0;right:0;padding:16px 20px;border-top:1px solid rgba(255,255,255,.08)">
       <button class="logout-btn" onclick="doLogout()">
@@ -209,6 +210,21 @@
       <div class="table-wrap">
         <div class="table-header"><h3>Todas las reservas</h3></div>
         <div id="reservas-table"><div class="loading">Cargando...</div></div>
+      </div>
+    </div>
+
+    <!-- FINANZAS -->
+    <div class="section" id="section-finanzas">
+      <div class="page-title">Finanzas</div>
+      <p class="page-sub">Estados financieros: cobrado, por cobrar, ganancias de médicos y de la plataforma</p>
+      <div class="stats-grid" id="fin-kpis"><div class="loading">Cargando...</div></div>
+      <div class="table-wrap" style="margin-top:24px">
+        <div class="table-header"><h3>Ingresos por médico</h3></div>
+        <div id="fin-medicos"><div class="loading">Cargando...</div></div>
+      </div>
+      <div class="table-wrap" style="margin-top:24px">
+        <div class="table-header"><h3>Ingresos por mes (últimos 6 meses)</h3></div>
+        <div id="fin-meses"><div class="loading">Cargando...</div></div>
       </div>
     </div>
 
@@ -330,6 +346,7 @@ function showSection(name, el) {
   document.getElementById('section-' + name).classList.add('active');
   el.classList.add('active');
   if (name === 'reservas') loadReservas();
+  if (name === 'finanzas') loadFinanzas();
 }
 
 // ---- DASHBOARD ----
@@ -346,6 +363,48 @@ async function loadDashboard() {
     <div class="stat-card blue"><div class="label">Pacientes</div><div class="value">${s.total_pacientes}</div></div>
     <div class="stat-card green"><div class="label">Ingresos (comisión)</div><div class="value">$${parseFloat(s.ingresos_totales).toFixed(2)}</div></div>
   `;
+}
+
+// ---- FINANZAS ----
+function fmtMoney(v){ return '$' + Number(v||0).toFixed(2); }
+async function loadFinanzas() {
+  const res  = await fetch(API + '?action=admin_finanzas', {headers: authHeaders()});
+  const json = await res.json();
+  if (!json.ok) { document.getElementById('fin-kpis').innerHTML = '<div class="empty">Error al cargar finanzas</div>'; return; }
+  const r = json.data.resumen, pm = json.data.por_medico || [], mes = json.data.por_mes || [];
+  document.getElementById('fin-kpis').innerHTML = `
+    <div class="stat-card green"><div class="label">Ingreso bruto cobrado</div><div class="value">${fmtMoney(r.bruto_cobrado)}</div></div>
+    <div class="stat-card green"><div class="label">Ganancia plataforma (comisión)</div><div class="value">${fmtMoney(r.comision_plataforma)}</div></div>
+    <div class="stat-card blue"><div class="label">Pagado a médicos</div><div class="value">${fmtMoney(r.pagado_medicos)}</div></div>
+    <div class="stat-card amber"><div class="label">En custodia (por confirmar)</div><div class="value">${fmtMoney(r.en_custodia)}</div></div>
+    <div class="stat-card amber"><div class="label">Por cobrar (${r.proximas_count} próximas)</div><div class="value">${fmtMoney(r.por_cobrar)}</div></div>
+    <div class="stat-card"><div class="label">Reembolsado</div><div class="value">${fmtMoney(r.reembolsado)}</div></div>
+    <div class="stat-card"><div class="label">Ticket promedio</div><div class="value">${fmtMoney(r.ticket_promedio)}</div></div>
+    <div class="stat-card"><div class="label">Consultas cobradas</div><div class="value">${r.consultas_cobradas}</div></div>
+  `;
+  document.getElementById('fin-medicos').innerHTML = pm.length ? `
+    <table>
+      <thead><tr><th>Médico</th><th style="text-align:right">Consultas</th><th style="text-align:right">Bruto cobrado</th><th style="text-align:right">Comisión</th><th style="text-align:right">Neto ganado</th><th style="text-align:right">En custodia</th><th style="text-align:right">Por cobrar</th></tr></thead>
+      <tbody>${pm.map(m => `<tr>
+        <td>${m.medico}</td>
+        <td style="text-align:right">${m.consultas_cobradas}</td>
+        <td style="text-align:right">${fmtMoney(m.bruto_cobrado)}</td>
+        <td style="text-align:right;color:var(--green)">${fmtMoney(m.comision_generada)}</td>
+        <td style="text-align:right;font-weight:600">${fmtMoney(m.neto_ganado)}</td>
+        <td style="text-align:right">${fmtMoney(m.en_custodia)}</td>
+        <td style="text-align:right">${fmtMoney(m.por_cobrar)}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty"><div class="empty-icon">💳</div>Sin ingresos de médicos aún</div>';
+  document.getElementById('fin-meses').innerHTML = mes.length ? `
+    <table>
+      <thead><tr><th>Mes</th><th style="text-align:right">Bruto</th><th style="text-align:right">Comisión plataforma</th><th style="text-align:right">Neto médicos</th></tr></thead>
+      <tbody>${mes.map(x => `<tr>
+        <td>${x.mes}</td>
+        <td style="text-align:right">${fmtMoney(x.bruto)}</td>
+        <td style="text-align:right;color:var(--green)">${fmtMoney(x.comision)}</td>
+        <td style="text-align:right;font-weight:600">${fmtMoney(x.neto)}</td>
+      </tr>`).join('')}</tbody>
+    </table>` : '<div class="empty"><div class="empty-icon">📅</div>Sin ingresos registrados aún</div>';
 }
 
 // ---- MÉDICOS ----
