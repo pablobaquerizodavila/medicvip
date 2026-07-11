@@ -71,6 +71,19 @@
 
   .panel{display:none}
   .panel.active{display:block;animation:fade .2s ease}
+
+  /* Timeline */
+  .tl{position:relative}
+  .tl-item{position:relative;display:flex;gap:14px;padding-bottom:16px}
+  .tl-item:not(:last-child)::before{content:'';position:absolute;left:15px;top:34px;bottom:-2px;width:2px;background:var(--border)}
+  .tl-dot{width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;z-index:1;background:var(--gray-bg)}
+  .tl-blue{background:var(--blue-bg)}.tl-green{background:var(--green-bg)}.tl-red{background:var(--red-bg)}.tl-amber{background:var(--amber-bg)}.tl-gray{background:var(--gray-bg)}
+  .tl-card{flex:1;border:1px solid var(--border);border-radius:10px;padding:10px 14px;background:var(--white)}
+  .tl-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .tl-titulo{font-size:13.5px;font-weight:600}
+  .tl-fecha{font-size:11.5px;color:var(--muted)}
+  .tl-res{font-size:13px;color:var(--ink);margin-top:2px}
+  .tl-med{font-size:11.5px;color:var(--muted);margin-top:3px}
   @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
   /* Cards */
@@ -197,6 +210,7 @@
       <button class="tab"        data-tab="recetas"     onclick="mostrarTab('recetas',this)">Recetas</button>
       <button class="tab"        data-tab="vitales"     onclick="mostrarTab('vitales',this)">Signos vitales</button>
       <button class="tab"        data-tab="documentos"  onclick="mostrarTab('documentos',this)">Documentos</button>
+      <button class="tab"        data-tab="timeline"    onclick="mostrarTab('timeline',this)">🕐 Línea de tiempo</button>
     </div>
 
     <div class="panel active" id="tab-resumen"></div>
@@ -205,6 +219,7 @@
     <div class="panel" id="tab-recetas"></div>
     <div class="panel" id="tab-vitales"></div>
     <div class="panel" id="tab-documentos"></div>
+    <div class="panel" id="tab-timeline"></div>
 
   </div>
 </main>
@@ -305,7 +320,44 @@ function render(){
   renderRecetas();
   renderVitales();
   renderDocumentos();
+  renderTimeline();
 }
+
+let _tlFiltro = 'todos';
+function renderTimeline(){
+  const ev = [];
+  (EXP.consultas||[]).forEach(c => ev.push({t:c.creado_en, tipo:'consulta', ic:'🩺', cls:'blue', titulo:'Consulta', resumen:(nz(c.diagnostico)||'Nota clínica'), medico:c.medico}));
+  (EXP.tratamientos||[]).forEach(x => {
+    ev.push({t:x.creado_en, tipo:'tratamiento', ic:'💊', cls:'green', titulo:'Tratamiento indicado', resumen:(x.medicamento||'')+(x.dosis?(' · '+x.dosis):''), medico:x.medico});
+    if (x.estado==='finalizado' && x.fecha_cierre) {
+      const rl={resolvio:'Resolvió',mejoro:'Mejoró',sin_cambio:'Sin cambio',empeoro:'Empeoró',pendiente:'—'};
+      ev.push({t:x.fecha_cierre, tipo:'tratamiento', ic:'🏁', cls:'gray', titulo:'Tratamiento finalizado', resumen:(x.medicamento||'')+' — '+(rl[x.resultado]||x.resultado||''), medico:x.medico});
+    }
+  });
+  (EXP.vitales||[]).forEach(v => ev.push({t:v.registrado_en, tipo:'vitales', ic:'🩸', cls:'red', titulo:'Signos vitales', resumen:[nz(v.presion_sistolica)&&('PA '+v.presion_sistolica+'/'+(nz(v.presion_diastolica)||'–')), nz(v.peso)&&('Peso '+v.peso+' kg'), nz(v.glucosa)&&('Glucosa '+v.glucosa)].filter(Boolean).join(' · '), medico:''}));
+  (EXP.documentos||[]).forEach(d => ev.push({t:d.creado_en, tipo:'documento', ic:'📎', cls:'amber', titulo:'Documento', resumen:(d.tipo||'')+(d.titulo?(' · '+d.titulo):''), medico:''}));
+  (EXP.recetas||[]).forEach(r => ev.push({t:r.creado_en||r.fecha_emision, tipo:'receta', ic:'📄', cls:'blue', titulo:'Receta '+(r.folio||('#'+r.id)), resumen:(r.num_items||0)+' medicamento(s)'+(r.diagnostico?(' · '+r.diagnostico):''), medico:''}));
+  ev.sort((a,b)=> String(b.t||'').localeCompare(String(a.t||'')));
+  const tipos=[['todos','Todos'],['consulta','Consultas'],['tratamiento','Tratamientos'],['vitales','Vitales'],['documento','Documentos'],['receta','Recetas']];
+  const chips = tipos.map(([k,l])=>`<button class="btn btn-sm ${_tlFiltro===k?'btn-blue':''}" onclick="_tlSet('${k}')">${l}</button>`).join(' ');
+  const filtrados = ev.filter(e=> _tlFiltro==='todos' || e.tipo===_tlFiltro);
+  const items = filtrados.length ? filtrados.map(e=>`
+    <div class="tl-item">
+      <div class="tl-dot tl-${e.cls}">${e.ic}</div>
+      <div class="tl-card">
+        <div class="tl-top"><span class="tl-titulo">${esc(e.titulo)}</span><span class="tl-fecha">${e.t?esc(fmtFecha(e.t)):''}</span></div>
+        <div class="tl-res">${esc(e.resumen||'')}</div>
+        ${e.medico?`<div class="tl-med">${esc(e.medico)}</div>`:''}
+      </div>
+    </div>`).join('') : emptyBox('🕐','Sin eventos en el historial');
+  document.getElementById('tab-timeline').innerHTML = `
+    <div class="card">
+      <div class="card-head"><div class="card-title">Línea de tiempo <span class="dim">${ev.length} eventos</span></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px">${chips}</div>
+      <div class="tl">${items}</div>
+    </div>`;
+}
+function _tlSet(k){ _tlFiltro=k; renderTimeline(); }
 
 /* ===== 2. Patient header ===== */
 function renderCabecera(){
