@@ -762,7 +762,7 @@ function adminReservas(): void {
 }
 function adminStats(): void {
     checkAdmin(); $db=getDB(); $s=[];
-    foreach(['total_medicos'=>'SELECT COUNT(*) FROM medicos','medicos_activos'=>"SELECT COUNT(*) FROM medicos WHERE estado='activo'",'medicos_pendientes'=>"SELECT COUNT(*) FROM medicos WHERE estado='pendiente'",'total_reservas'=>'SELECT COUNT(*) FROM reservas','total_pacientes'=>'SELECT COUNT(*) FROM pacientes','ingresos_totales'=>'SELECT IFNULL(SUM(comision),0) FROM reservas WHERE estado_pago="pagado"'] as $k=>$sql)
+    foreach(['total_medicos'=>'SELECT COUNT(*) FROM medicos','medicos_activos'=>"SELECT COUNT(*) FROM medicos WHERE estado='activo'",'medicos_pendientes'=>"SELECT COUNT(*) FROM medicos WHERE estado='pendiente'",'total_reservas'=>'SELECT COUNT(*) FROM reservas','total_pacientes'=>'SELECT COUNT(*) FROM pacientes WHERE password_hash IS NOT NULL AND LENGTH(password_hash) > 0','ingresos_totales'=>'SELECT IFNULL(SUM(comision),0) FROM reservas WHERE estado_pago="pagado"'] as $k=>$sql)
         { $r=$db->query($sql)->fetch_row(); $s[$k]=$r[0]; }
     jsonOk($s);
 }
