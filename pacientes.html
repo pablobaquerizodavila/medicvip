@@ -339,6 +339,7 @@ async function loadDoctors() {
         bio:      m.biografia || '',
         foto:     m.foto_perfil || null,
         slots:    m.disponibilidad || [],
+        disponibilidad: m.disponibilidad || [],
         proximo_disponible: m.proximo_disponible,
         languages: m.idiomas || 'Español',
         universidad: m.universidad || null,
@@ -407,6 +408,15 @@ function filterDoctors() {
   renderDoctors(list);
 }
 
+function horariosSemanaHtml(dispo){
+  if(!dispo || !dispo.length) return 'Sin horarios publicados';
+  const ORD = {'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sábado':6,'Domingo':7};
+  const AB = {'Lunes':'Lun','Martes':'Mar','Miércoles':'Mié','Jueves':'Jue','Viernes':'Vie','Sábado':'Sáb','Domingo':'Dom'};
+  const g = {};
+  dispo.forEach(s => { const i=String(s).indexOf(' '); const d=String(s).slice(0,i); const h=String(s).slice(i+1); if(!g[d]) g[d]=[]; g[d].push(h); });
+  return Object.keys(g).sort((a,b)=>(ORD[a]||9)-(ORD[b]||9)).map(d => (AB[d]||d)+' '+g[d].sort().join(', ')).join(' · ');
+}
+
 function renderDoctors(list) {
   const container = document.getElementById('doctors-list');
   if(!list.length) {
@@ -432,7 +442,7 @@ function renderDoctors(list) {
         <div class="dc-spec">${d.exp?d.exp+' de experiencia · ':''} ${d.city}</div>
         <div class="dc-meta"><div class="dc-meta-item">🗣 ${d.languages}</div></div>
         <p class="dc-bio">${d.bio}</p>
-        <div style="font-size:13px;color:var(--muted)">Próximo disponible: <strong style="color:var(--ink)">${d.proximo_disponible || 'Consultar horarios'}</strong></div>
+        <div style="font-size:13px;color:var(--muted)">Horarios: <strong style="color:var(--ink)">${horariosSemanaHtml(d.disponibilidad)}</strong></div>
       </div>
       <div class="dc-actions">
         <div class="dc-price">$${parseFloat(d.fee).toFixed(2)}<span>por consulta</span></div>

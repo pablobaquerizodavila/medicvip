@@ -67,6 +67,7 @@ try {
         case 'medico_agenda':           medicoAgenda();           break;
         case 'medico_bloqueo_crear':    medicoBloqueoCrear();     break;
         case 'medico_bloqueo_eliminar': medicoBloqueoEliminar();  break;
+        case 'medico_disponibilidad_guardar': medicoDisponibilidadGuardar(); break;
         case 'paciente_cancelar_reserva':    pacienteCancelarReserva();    break;
         case 'paciente_reprogramar_reserva': pacienteReprogramarReserva(); break;
         case 'medico_cancelar_reserva':      medicoCancelarReserva();      break;
@@ -178,7 +179,7 @@ function listarMedicos(): void {
         : query('SELECT * FROM v_medicos_activos ORDER BY id DESC');
     $medicos = fetchAll($stmt);
     $db = getDB();
-    $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"),hora');
+    $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"),hora');
     $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
@@ -401,6 +402,27 @@ function medicoBloqueoEliminar(): void {
     $st->bind_param('ii',$id,$medicoId); $st->execute();
     if ($db->affected_rows < 1) jsonError('Bloqueo no encontrado');
     jsonOk(['mensaje'=>'Bloqueo eliminado']);
+}
+
+// ── DISPONIBILIDAD (plantilla semanal editable) ───────────────────────────────
+function medicoDisponibilidadGuardar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $disp = $data['disponibilidad'] ?? null;
+    if (!is_array($disp)) jsonError('Falta disponibilidad');
+    $DIAS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+    $db = getDB();
+    $del = $db->prepare('DELETE FROM medico_disponibilidad WHERE medico_id=?');
+    $del->bind_param('i',$medicoId); $del->execute();
+    $ins = $db->prepare('INSERT INTO medico_disponibilidad (medico_id,dia_semana,hora) VALUES (?,?,?)');
+    $n = 0; $vistos = [];
+    foreach ($disp as $slot) {
+        $dia  = (string)($slot['dia'] ?? '');
+        $hora = substr((string)($slot['hora'] ?? ''), 0, 5);
+        if (!in_array($dia, $DIAS, true) || !preg_match('/^\d{2}:\d{2}$/', $hora)) continue;
+        $k = $dia.'|'.$hora; if (isset($vistos[$k])) continue; $vistos[$k] = 1;
+        $ins->bind_param('iss',$medicoId,$dia,$hora); $ins->execute(); $n++;
+    }
+    jsonOk(['mensaje'=>'Disponibilidad actualizada','slots'=>$n]);
 }
 
 // ── CANCELAR / REPROGRAMAR ────────────────────────────────────────────────────

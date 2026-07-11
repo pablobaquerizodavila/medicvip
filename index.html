@@ -375,6 +375,15 @@
   const API = '/api.php';
   const AV_COLORS = ['dc-av1','dc-av2','dc-av3'];
 
+  function horariosSemanaHtml(dispo){
+    if(!dispo || !dispo.length) return 'Sin horarios publicados';
+    const ORD = {'Lunes':1,'Martes':2,'Miércoles':3,'Jueves':4,'Viernes':5,'Sábado':6,'Domingo':7};
+    const AB = {'Lunes':'Lun','Martes':'Mar','Miércoles':'Mié','Jueves':'Jue','Viernes':'Vie','Sábado':'Sáb','Domingo':'Dom'};
+    const g = {};
+    dispo.forEach(s => { const i=String(s).indexOf(' '); const d=String(s).slice(0,i); const h=String(s).slice(i+1); if(!g[d]) g[d]=[]; g[d].push(h); });
+    return Object.keys(g).sort((a,b)=>(ORD[a]||9)-(ORD[b]||9)).map(d => (AB[d]||d)+' '+g[d].sort().join(', ')).join(' · ');
+  }
+
   async function loadDestacados() {
     try {
       const res  = await fetch(API + '?action=listar_medicos');
@@ -406,7 +415,7 @@
               </div>
             </div>
             <p class="dc-bio">${bio}</p>
-            <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Próximo disponible: <strong style="color:var(--ink);font-weight:500">${m.proximo_disponible || 'Consultar horarios'}</strong></div>
+            <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Horarios: <strong style="color:var(--ink);font-weight:500">${horariosSemanaHtml(m.disponibilidad)}</strong></div>
             <div class="dc-bottom">
               <div class="dc-price">$${tarifa} <span>/ consulta</span></div>
               <a href="/pacientes.html?v=2" class="dc-btn">Agendar →</a>

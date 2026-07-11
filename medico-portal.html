@@ -75,6 +75,8 @@
   .btn:hover{background:var(--cream)}
   .btn-green{background:var(--green-mid);color:var(--white);border-color:var(--green-mid)}
   .btn-green:hover{background:var(--green-dark)}
+  .dispo-slot{padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:#fff;font-size:13px;cursor:pointer;color:var(--ink)}
+  .dispo-slot.dispo-on{background:var(--green-mid);border-color:var(--green-mid);color:#fff}
   .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
   .stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;margin-bottom:24px}
   .stat-card{background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px}
@@ -274,6 +276,7 @@
         <button class="btn" onclick="agSemana(-1)">← Semana anterior</button>
         <span id="ag-rango" style="font-size:14px;font-weight:500;min-width:200px;text-align:center">—</span>
         <button class="btn" onclick="agSemana(1)">Semana siguiente →</button>
+        <button class="btn" onclick="abrirEditorDispo()">⚙️ Editar mis horarios de atención</button>
         <button class="btn" style="margin-left:auto;background:#C0392B;color:#fff;border-color:#C0392B" onclick="abrirBloqueoModal()">🚫 Bloquear días</button>
       </div>
       <div id="agenda-grid"><div class="loading">Cargando...</div></div>
@@ -826,6 +829,9 @@ async function cancelarReservaMedico(id){
 const AG_DIAS  = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 const AG_CORTO = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 let _agSemana = 0;
+let _agPlantilla = [];
+const DISPO_DIAS  = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const DISPO_SLOTS = ['07:00','08:00','09:00','10:00','11:00','12:00','14:00','15:00','16:00','17:00','18:00','19:00'];
 
 function agParseFecha(s){ const p=(s||'').split('-'); return new Date(+p[0], (+p[1])-1, +p[2]); }
 function agFmtFecha(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -847,6 +853,7 @@ async function loadAgenda(){
 function agSemana(delta){ _agSemana += delta; loadAgenda(); }
 
 function renderAgenda(d){
+  _agPlantilla = d.plantilla || [];
   document.getElementById('ag-rango').textContent = 'Semana del '+d.desde+' al '+d.hasta;
   const lunes = agParseFecha(d.desde);
   const dur   = parseInt(d.duracion,10) || 30;
@@ -935,6 +942,35 @@ async function crearBloqueo(){
     if(!j.ok){ alert(j.error||'Error'); return; }
     cerrarModalPortal && cerrarModalPortal(); loadAgenda();
   } catch(e){ alert('Error de conexión'); }
+}
+
+// ---- Editor de disponibilidad semanal ----
+function abrirEditorDispo(){
+  const sel = new Set((_agPlantilla||[]).map(p => p.dia_semana + '|' + String(p.hora).slice(0,5)));
+  let html = '<p style="color:var(--muted);font-size:13px;margin:0 0 12px">Activa los bloques en que atiendes. Se ofrecerán a los pacientes al agendar.</p>'
+           + '<div id="dispo-grid" style="max-height:50vh;overflow-y:auto">';
+  DISPO_DIAS.forEach(d => {
+    html += '<div style="margin-bottom:10px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">'+d+'</div><div style="display:flex;flex-wrap:wrap;gap:6px">';
+    DISPO_SLOTS.forEach(h => {
+      const on = sel.has(d+'|'+h) ? ' dispo-on' : '';
+      html += '<button type="button" class="dispo-slot'+on+'" data-dia="'+d+'" data-hora="'+h+'" onclick="this.classList.toggle(\'dispo-on\')">'+h+'</button>';
+    });
+    html += '</div></div>';
+  });
+  html += '</div><div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">'
+        + '<button class="btn" onclick="cerrarModalPortal()">Cancelar</button>'
+        + '<button class="btn btn-green" onclick="guardarDispo()">Guardar horarios</button></div>';
+  mostrarModalPortal('Mis horarios de atención', html);
+}
+async function guardarDispo(){
+  const disp = [];
+  document.querySelectorAll('#dispo-grid .dispo-slot.dispo-on').forEach(b => disp.push({dia:b.dataset.dia, hora:b.dataset.hora}));
+  try {
+    const r = await fetch(API + '?action=medico_disponibilidad_guardar', {method:'POST', headers: authHeaders(), body: JSON.stringify({disponibilidad: disp})});
+    const j = await r.json();
+    if(!j.ok){ alert(j.error||'No se pudo guardar'); return; }
+    cerrarModalPortal(); loadAgenda();
+  } catch(e){ alert('No se pudo conectar'); }
 }
 
 // ---- Historial clínico y notas ----
