@@ -387,7 +387,6 @@
         <div class="stat-card"><div class="stat-label">Cobrado</div><div class="stat-val" id="pg-cobrado" style="color:var(--green-mid)">—</div></div>
         <div class="stat-card"><div class="stat-label">En custodia</div><div class="stat-val" id="pg-custodia" style="color:#B45309">—</div></div>
         <div class="stat-card"><div class="stat-label">Reembolsado</div><div class="stat-val" id="pg-reembolso" style="color:#C0392B">—</div></div>
-        <div class="stat-card"><div class="stat-label">Comisión total</div><div class="stat-val" id="pg-comision" style="color:var(--muted)">—</div></div>
       </div>
       <div class="card" style="overflow-x:auto;padding:0">
         <table style="width:100%;border-collapse:collapse;font-size:13px;min-width:720px">
@@ -639,7 +638,6 @@ async function loadPagos() {
     document.getElementById('pg-cobrado').textContent  = '$' + Number(t.cobrado).toFixed(2);
     document.getElementById('pg-custodia').textContent = '$' + Number(t.en_custodia).toFixed(2);
     document.getElementById('pg-reembolso').textContent = '$' + Number(t.reembolsado).toFixed(2);
-    document.getElementById('pg-comision').textContent = '$' + Number(t.comision_total).toFixed(2);
     const rows = json.data.reservas;
     if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:var(--muted)">Sin reservas todavía</td></tr>'; return; }
     const badge = (estado) => {
