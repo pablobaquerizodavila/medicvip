@@ -801,14 +801,19 @@ function medicoPerfil(): void {
 function medicoActualizar(): void {
     $medicoId=checkMedico(); $data=json_decode(file_get_contents('php://input'),true);
     $db=getDB(); $db->begin_transaction();
-    $stmt=$db->prepare('UPDATE medicos SET telefono=?,ciudad=?,genero=? WHERE id=?');
-    $stmt->bind_param('sssi',$data['telefono'],$data['ciudad'],$data['genero'],$medicoId); $stmt->execute();
-    $sub=(string)($data['subespecialidad']??''); $post=(string)($data['postgrado']??'');
-    $stmt=$db->prepare('UPDATE medico_especialidad SET especialidad=?,subespecialidad=?,anos_experiencia=?,idiomas=?,universidad=?,postgrado=?,biografia=? WHERE medico_id=?');
-    $stmt->bind_param('sssssssi',$data['especialidad'],$sub,$data['anos_experiencia'],$data['idiomas'],$data['universidad'],$post,$data['biografia'],$medicoId); $stmt->execute();
-    $tarifa=(float)($data['tarifa']??0); $dur=(int)($data['duracion_minutos']??30);
-    $stmt=$db->prepare('UPDATE medico_pago SET tarifa=?,duracion_minutos=?,banco=?,tipo_cuenta=?,numero_cuenta=?,cedula_titular=?,nombre_titular=? WHERE medico_id=?');
-    $stmt->bind_param('disssssi',$tarifa,$dur,$data['banco'],$data['tipo_cuenta'],$data['numero_cuenta'],$data['cedula_titular'],$data['nombre_titular'],$medicoId); $stmt->execute();
+    // COALESCE(?, col): si el campo no viene en el payload (null), se conserva el valor actual
+    // (evita nulificar columnas NOT NULL y no borra datos que el form del portal no envía).
+    $v_nom=$data['nombre']??null; $v_ape=$data['apellido']??null; $v_tel=$data['telefono']??null; $v_ciu=$data['ciudad']??null; $v_gen=$data['genero']??null;
+    $stmt=$db->prepare('UPDATE medicos SET nombre=COALESCE(?,nombre),apellido=COALESCE(?,apellido),telefono=COALESCE(?,telefono),ciudad=COALESCE(?,ciudad),genero=COALESCE(?,genero) WHERE id=?');
+    $stmt->bind_param('sssssi',$v_nom,$v_ape,$v_tel,$v_ciu,$v_gen,$medicoId); $stmt->execute();
+    $v_esp=$data['especialidad']??null; $v_sub=$data['subespecialidad']??null; $v_ann=$data['anos_experiencia']??null; $v_idi=$data['idiomas']??null; $v_uni=$data['universidad']??null; $v_pos=$data['postgrado']??null; $v_bio=$data['biografia']??null;
+    $stmt=$db->prepare('UPDATE medico_especialidad SET especialidad=COALESCE(?,especialidad),subespecialidad=COALESCE(?,subespecialidad),anos_experiencia=COALESCE(?,anos_experiencia),idiomas=COALESCE(?,idiomas),universidad=COALESCE(?,universidad),postgrado=COALESCE(?,postgrado),biografia=COALESCE(?,biografia) WHERE medico_id=?');
+    $stmt->bind_param('sssssssi',$v_esp,$v_sub,$v_ann,$v_idi,$v_uni,$v_pos,$v_bio,$medicoId); $stmt->execute();
+    $v_tar = (isset($data['tarifa']) && $data['tarifa']!=='') ? (float)$data['tarifa'] : null;
+    $v_dur = (isset($data['duracion_minutos']) && $data['duracion_minutos']!=='') ? (int)$data['duracion_minutos'] : null;
+    $v_ban=$data['banco']??null; $v_tip=$data['tipo_cuenta']??null; $v_num=$data['numero_cuenta']??null; $v_ced=$data['cedula_titular']??null; $v_tit=$data['nombre_titular']??null;
+    $stmt=$db->prepare('UPDATE medico_pago SET tarifa=COALESCE(?,tarifa),duracion_minutos=COALESCE(?,duracion_minutos),banco=COALESCE(?,banco),tipo_cuenta=COALESCE(?,tipo_cuenta),numero_cuenta=COALESCE(?,numero_cuenta),cedula_titular=COALESCE(?,cedula_titular),nombre_titular=COALESCE(?,nombre_titular) WHERE medico_id=?');
+    $stmt->bind_param('disssssi',$v_tar,$v_dur,$v_ban,$v_tip,$v_num,$v_ced,$v_tit,$medicoId); $stmt->execute();
     if(!empty($data['foto_base64'])){try{$fp=guardarFotoBase64($data['foto_base64'],'update_'.$medicoId);if($fp){$st=$db->prepare('UPDATE medicos SET foto_perfil=? WHERE id=?');$st->bind_param('si',$fp,$medicoId);$st->execute();}}catch(Exception $e){}}
     if(isset($data['disponibilidad'])&&is_array($data['disponibilidad'])){
         $db->query("DELETE FROM medico_disponibilidad WHERE medico_id=$medicoId");
