@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Receta médica — MedicOnline</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green:#0D7A5F;--green-mid:#1D9E75;--green-dark:#094D3B;
+    --ink:#1A1A18;--muted:#6B6B66;--faint:#9A9A93;
+    --border:rgba(26,26,24,.14);--line:rgba(26,26,24,.08);
+    --screen-bg:#EEEDEA;--white:#fff;
+    --font:'DM Sans',sans-serif;--display:'DM Serif Display',serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--screen-bg)}
+  body{font-family:var(--font);color:var(--ink);line-height:1.5;padding:32px 16px 64px;-webkit-font-smoothing:antialiased}
+
+  /* Toolbar / print button */
+  .toolbar{max-width:800px;margin:0 auto 20px;display:flex;justify-content:flex-end}
+  .btn-print{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;background:var(--ink);color:var(--white);border:none;border-radius:100px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;transition:background .2s;box-shadow:0 4px 14px rgba(0,0,0,.12)}
+  .btn-print:hover{background:var(--green-mid)}
+
+  /* Document sheet */
+  .sheet{max-width:800px;margin:0 auto;background:var(--white);border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.10);padding:56px 60px}
+
+  /* States */
+  .state{max-width:800px;margin:0 auto;background:var(--white);border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.10);padding:56px 60px;text-align:center}
+  .state .state-icon{font-size:40px;margin-bottom:14px}
+  .state h2{font-family:var(--display);font-size:24px;font-weight:400;margin-bottom:8px}
+  .state p{font-size:15px;color:var(--muted)}
+  .state a{color:var(--green);font-weight:500;text-decoration:none}
+  .state a:hover{text-decoration:underline}
+
+  /* Header / membrete */
+  .membrete{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap}
+  .brand{font-family:var(--display);font-size:30px;line-height:1;letter-spacing:-.01em}
+  .brand em{color:var(--green-mid);font-style:normal}
+  .brand-tag{font-size:11px;color:var(--faint);letter-spacing:.14em;text-transform:uppercase;margin-top:8px}
+  .medico-block{text-align:right}
+  .medico-block .m-nombre{font-weight:600;font-size:16px}
+  .medico-block .m-esp,.medico-block .m-lic{font-size:13px;color:var(--muted);margin-top:2px}
+  .divider{border:none;border-top:2px solid var(--ink);margin:22px 0 26px}
+
+  /* Paciente + folio row */
+  .row-info{display:flex;justify-content:space-between;gap:24px;flex-wrap:wrap;margin-bottom:30px}
+  .row-info .col-right{text-align:right}
+  .info-line{font-size:14px;margin-bottom:4px}
+  .info-line .lbl{color:var(--muted)}
+  .info-line strong{font-weight:600}
+
+  /* Rp/ section */
+  .rp-head{font-family:var(--display);font-size:38px;line-height:1;color:var(--green-dark);margin-bottom:18px}
+  ol.meds{list-style:none;counter-reset:med}
+  ol.meds li{counter-increment:med;position:relative;padding:14px 0 14px 40px;border-bottom:1px solid var(--line)}
+  ol.meds li:first-child{border-top:1px solid var(--line)}
+  ol.meds li::before{content:counter(med) ".";position:absolute;left:0;top:14px;font-weight:600;color:var(--green);font-size:16px}
+  .med-name{font-weight:600;font-size:16px}
+  .med-detail{font-size:14px;color:var(--muted);margin-top:3px}
+  .med-indic{font-size:13px;color:var(--muted);font-style:italic;margin-top:4px}
+
+  /* General sections */
+  .section{margin-top:28px;font-size:14px}
+  .section .s-title{font-weight:600;margin-bottom:5px}
+  .section .s-body{color:var(--ink);white-space:pre-wrap}
+  .diag-line{margin-top:22px;font-size:14px}
+  .diag-line strong{font-weight:600}
+
+  /* Firma */
+  .firma{margin-top:64px;display:flex;justify-content:flex-end}
+  .firma-inner{text-align:center;min-width:240px}
+  .firma-line{border-top:1.5px solid var(--ink);width:240px;margin:0 auto 8px}
+  .firma-inner .f-nombre{font-weight:600;font-size:14px}
+  .firma-inner .f-lic{font-size:12px;color:var(--muted);margin-top:2px}
+
+  /* Footnote */
+  .footnote{margin-top:40px;text-align:center;font-size:11px;color:var(--faint);letter-spacing:.02em}
+
+  @media (max-width:640px){
+    body{padding:16px 10px 40px}
+    .sheet,.state{padding:32px 22px}
+    .membrete{flex-direction:column;gap:14px}
+    .medico-block{text-align:left}
+    .brand{font-size:26px}
+    .rp-head{font-size:32px}
+    .row-info .col-right{text-align:left}
+  }
+
+  @media print{
+    :root{--screen-bg:#fff}
+    @page{margin:1.5cm}
+    html,body{background:#fff}
+    body{padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .no-print{display:none !important}
+    .sheet,.state{max-width:100%;box-shadow:none;border-radius:0;padding:0}
+    ol.meds li{page-break-inside:avoid}
+    .firma{page-break-inside:avoid}
+  }
+</style>
+</head>
+<body>
+
+  <div class="toolbar no-print">
+    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Descargar PDF</button>
+  </div>
+
+  <div id="root"></div>
+
+<script>
+  const API = '/api.php';
+  const root = document.getElementById('root');
+
+  function esc(v){
+    if (v === null || v === undefined) return '';
+    return String(v)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function showState(icon, title, msg){
+    document.querySelector('.toolbar').style.display = 'none';
+    root.innerHTML =
+      '<div class="state">' +
+        '<div class="state-icon">' + icon + '</div>' +
+        '<h2>' + esc(title) + '</h2>' +
+        '<p>' + msg + '</p>' +
+      '</div>';
+  }
+
+  function render(d){
+    const med = d.medico || {};
+    const pac = d.paciente || {};
+    const items = Array.isArray(d.items) ? d.items : [];
+
+    // Membrete
+    let html = '<div class="sheet">';
+    html += '<div class="membrete">';
+    html +=   '<div class="brand-block">';
+    html +=     '<div class="brand">Medic<em>Online</em></div>';
+    html +=     '<div class="brand-tag">Receta médica</div>';
+    html +=   '</div>';
+    html +=   '<div class="medico-block">';
+    html +=     '<div class="m-nombre">Dr(a). ' + esc(med.nombre_completo) + '</div>';
+    if (med.especialidad) html += '<div class="m-esp">' + esc(med.especialidad) + '</div>';
+    if (med.licencia)     html += '<div class="m-lic">Reg. médico: ' + esc(med.licencia) + '</div>';
+    html +=   '</div>';
+    html += '</div>';
+    html += '<hr class="divider">';
+
+    // Paciente + folio
+    const edadTxt = (pac.edad !== null && pac.edad !== undefined) ? (esc(pac.edad) + ' años') : '—';
+    html += '<div class="row-info">';
+    html +=   '<div class="col-left">';
+    html +=     '<div class="info-line"><span class="lbl">Paciente:</span> <strong>' + esc(pac.nombre) + '</strong></div>';
+    html +=     '<div class="info-line"><span class="lbl">Edad:</span> ' + edadTxt + '</div>';
+    html +=     '<div class="info-line"><span class="lbl">CI:</span> ' + (pac.cedula ? esc(pac.cedula) : '—') + '</div>';
+    html +=   '</div>';
+    html +=   '<div class="col-right">';
+    html +=     '<div class="info-line"><span class="lbl">Folio:</span> <strong>' + esc(d.folio) + '</strong></div>';
+    html +=     '<div class="info-line"><span class="lbl">Fecha:</span> ' + esc(d.fecha_emision) + '</div>';
+    html +=   '</div>';
+    html += '</div>';
+
+    // Rp/
+    html += '<div class="rp-head">Rp/</div>';
+    if (items.length){
+      html += '<ol class="meds">';
+      items.forEach(function(it){
+        it = it || {};
+        html += '<li>';
+        html +=   '<div class="med-name">' + esc(it.medicamento) + '</div>';
+        const detail = [it.dosis, it.frecuencia, it.duracion]
+          .filter(function(x){ return x !== null && x !== undefined && String(x).trim() !== ''; })
+          .map(function(x){ return esc(x); })
+          .join(' · ');
+        if (detail) html += '<div class="med-detail">' + detail + '</div>';
+        if (it.indicaciones && String(it.indicaciones).trim() !== '')
+          html += '<div class="med-indic">Indicaciones: ' + esc(it.indicaciones) + '</div>';
+        html += '</li>';
+      });
+      html += '</ol>';
+    } else {
+      html += '<div class="med-detail">Sin medicamentos registrados.</div>';
+    }
+
+    // Indicaciones generales
+    if (d.indicaciones && String(d.indicaciones).trim() !== ''){
+      html += '<div class="section">';
+      html +=   '<div class="s-title">Indicaciones generales:</div>';
+      html +=   '<div class="s-body">' + esc(d.indicaciones) + '</div>';
+      html += '</div>';
+    }
+
+    // Diagnóstico
+    if (d.diagnostico && String(d.diagnostico).trim() !== ''){
+      html += '<div class="diag-line"><strong>Diagnóstico:</strong> ' + esc(d.diagnostico) + '</div>';
+    }
+
+    // Firma
+    html += '<div class="firma"><div class="firma-inner">';
+    html +=   '<div class="firma-line"></div>';
+    html +=   '<div class="f-nombre">' + esc(med.nombre_completo) + '</div>';
+    if (med.licencia) html += '<div class="f-lic">Reg. médico ' + esc(med.licencia) + '</div>';
+    html += '</div></div>';
+
+    // Footnote
+    html += '<div class="footnote">Documento generado por MedicOnline — ' + esc(d.folio) + '</div>';
+
+    html += '</div>';
+    root.innerHTML = html;
+  }
+
+  async function load(){
+    const id = new URLSearchParams(location.search).get('id');
+
+    const MT = localStorage.getItem('medico_token');
+    const PT = localStorage.getItem('paciente_token');
+    let tokenHeader = null;
+    if (MT)      tokenHeader = {'X-Medico-Token': MT};
+    else if (PT) tokenHeader = {'X-Paciente-Token': PT};
+
+    if (!tokenHeader){
+      showState('🔒', 'Inicia sesión para ver la receta',
+        'Necesitas una sesión activa de médico o paciente para consultar este documento.');
+      return;
+    }
+
+    if (!id){
+      showState('⚠️', 'Receta no especificada',
+        'No se recibió el identificador de la receta.');
+      return;
+    }
+
+    showState('⏳', 'Cargando receta…', 'Un momento por favor.');
+    document.querySelector('.toolbar').style.display = '';
+
+    try {
+      const res = await fetch(API + '?action=receta_ver', {
+        method: 'POST',
+        headers: Object.assign({'Content-Type':'application/json'}, tokenHeader),
+        body: JSON.stringify({receta_id: id})
+      });
+      const json = await res.json();
+      if (!json.ok){
+        showState('⚠️', 'No se pudo cargar la receta', esc(json.error || 'Error desconocido'));
+        return;
+      }
+      document.querySelector('.toolbar').style.display = '';
+      render(json.data);
+    } catch (e){
+      showState('⚠️', 'Error de conexión', 'No se pudo comunicar con el servidor. Intenta de nuevo.');
+    }
+  }
+
+  load();
+</script>
+</body>
+</html>

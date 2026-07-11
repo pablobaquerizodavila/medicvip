@@ -297,6 +297,21 @@ CREATE TABLE `documentos` (
   KEY `idx_paciente` (`paciente_id`),
   CONSTRAINT `fk_doc_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `recetas`;
+CREATE TABLE `recetas` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `paciente_id` int(10) unsigned NOT NULL,
+  `medico_id` int(10) unsigned NOT NULL,
+  `reserva_id` int(10) unsigned DEFAULT NULL,
+  `diagnostico` text DEFAULT NULL,
+  `indicaciones` text DEFAULT NULL,
+  `items` longtext DEFAULT NULL,
+  `fecha_emision` date NOT NULL DEFAULT (curdate()),
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_paciente` (`paciente_id`),
+  CONSTRAINT `fk_receta_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;
 /*!50001 DROP VIEW IF EXISTS `v_medicos_activos`*/;

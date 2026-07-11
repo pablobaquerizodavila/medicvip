@@ -194,6 +194,7 @@
       <button class="tab active" data-tab="resumen"     onclick="mostrarTab('resumen',this)">Resumen</button>
       <button class="tab"        data-tab="consultas"   onclick="mostrarTab('consultas',this)">Consultas</button>
       <button class="tab"        data-tab="tratamientos" onclick="mostrarTab('tratamientos',this)">Tratamientos</button>
+      <button class="tab"        data-tab="recetas"     onclick="mostrarTab('recetas',this)">Recetas</button>
       <button class="tab"        data-tab="vitales"     onclick="mostrarTab('vitales',this)">Signos vitales</button>
       <button class="tab"        data-tab="documentos"  onclick="mostrarTab('documentos',this)">Documentos</button>
     </div>
@@ -201,6 +202,7 @@
     <div class="panel active" id="tab-resumen"></div>
     <div class="panel" id="tab-consultas"></div>
     <div class="panel" id="tab-tratamientos"></div>
+    <div class="panel" id="tab-recetas"></div>
     <div class="panel" id="tab-vitales"></div>
     <div class="panel" id="tab-documentos"></div>
 
@@ -300,6 +302,7 @@ function render(){
   renderResumen();
   renderConsultas();
   renderTratamientos();
+  renderRecetas();
   renderVitales();
   renderDocumentos();
 }
@@ -470,6 +473,32 @@ function chipResultado(r){
   };
   const [cls,lbl] = m[r] || ['chip-gray', r];
   return `<span class="chip ${cls}">${esc(lbl)}</span>`;
+}
+
+/* ===== Recetas ===== */
+function renderRecetas(){
+  const recs = EXP.recetas || [];
+  const lista = recs.length ? recs.map(r => `
+    <div class="item">
+      <div class="item-top">
+        <span class="item-title">Receta ${esc(nz(r.folio) || ('#' + r.id))}</span>
+        <span class="item-date">${esc(fmtFecha(r.fecha_emision))}</span>
+      </div>
+      ${nz(r.diagnostico) ? `<div class="kv-row kv"><span class="k">Diagnóstico:</span> ${esc(r.diagnostico)}</div>` : ''}
+      <div class="kv-row kv"><span class="k">${esc(nz(r.num_items) || 0)} medicamento(s)</span></div>
+      <div style="margin-top:12px">
+        <button class="btn btn-sm" onclick="window.open('/receta.html?id=${Number(r.id)}','_blank')">Ver / Imprimir</button>
+      </div>
+    </div>`).join('') : emptyBox('📄','Sin recetas emitidas');
+
+  document.getElementById('tab-recetas').innerHTML = `
+    <div class="card">
+      <div class="card-head">
+        <div class="card-title">Recetas <span class="dim">${recs.length}</span></div>
+        <button class="btn btn-blue btn-sm" onclick="modalReceta()">➕ Nueva receta</button>
+      </div>
+      ${lista}
+    </div>`;
 }
 
 /* ===== Signos vitales ===== */
@@ -709,6 +738,107 @@ function subirDocumento(){
 async function eliminarDocumento(id){
   if(!confirm('¿Eliminar este documento del expediente? Esta acción no se puede deshacer.')) return;
   await postAccion('medico_documento_eliminar', {paciente_id: pid, documento_id: id});
+}
+
+/* ===== Modal: Nueva receta ===== */
+function recConsultaOptions(){
+  const rs = EXP.reservas || [];
+  return '<option value="">— Sin consulta —</option>' +
+    rs.map(r => opt(r.id, `#${r.id} · ${nz(r.horario) || fmtFecha(r.creado_en)}`, '')).join('');
+}
+function recAgregarItem(it){
+  it = it || {};
+  const cont = document.getElementById('rec-items');
+  if(!cont) return;
+  const row = document.createElement('div');
+  row.className = 'rec-row';
+  row.style.cssText = 'border:1px solid var(--border);border-radius:12px;padding:14px 14px 4px;margin-bottom:10px;position:relative;background:var(--bg)';
+  row.innerHTML = `
+    <button type="button" class="modal-x" style="position:absolute;top:6px;right:8px" title="Quitar" onclick="recQuitarItem(this)">×</button>
+    <div class="field" style="margin-bottom:10px"><label>Medicamento <span class="req">*</span></label><input type="text" class="ri-med" placeholder="Ej. Amoxicilina 500 mg"></div>
+    <div class="frow">
+      <div class="field"><label>Dosis</label><input type="text" class="ri-dosis" placeholder="Ej. 1 tableta"></div>
+      <div class="field"><label>Frecuencia</label><input type="text" class="ri-frec" placeholder="Ej. cada 8 h"></div>
+    </div>
+    <div class="frow">
+      <div class="field"><label>Duración</label><input type="text" class="ri-dur" placeholder="Ej. 7 días"></div>
+      <div class="field"><label>Indicaciones</label><input type="text" class="ri-ind" placeholder="Ej. tomar con alimentos"></div>
+    </div>`;
+  cont.appendChild(row);
+  row.querySelector('.ri-med').value   = it.medicamento || '';
+  row.querySelector('.ri-dosis').value = it.dosis || '';
+  row.querySelector('.ri-frec').value  = it.frecuencia || '';
+  row.querySelector('.ri-dur').value   = it.duracion || '';
+  row.querySelector('.ri-ind').value   = it.indicaciones || '';
+}
+function recQuitarItem(btn){
+  const row = btn.closest('.rec-row');
+  if(row) row.remove();
+}
+function recPrellenar(){
+  const rid  = val('rec-consulta');
+  const cont = document.getElementById('rec-items');
+  // Diagnóstico desde la consulta ligada a esa reserva
+  const c = (EXP.consultas || []).find(x => rid && String(x.reserva_id) === String(rid));
+  if(c && nz(c.diagnostico)){
+    const d = document.getElementById('rec-diag');
+    if(d) d.value = c.diagnostico;
+  }
+  // Renglones desde los tratamientos ligados a esa reserva
+  cont.innerHTML = '';
+  const trats = (EXP.tratamientos || []).filter(t => rid && String(t.reserva_id) === String(rid));
+  if(trats.length){
+    trats.forEach(t => recAgregarItem({medicamento: t.medicamento, dosis: t.dosis, frecuencia: t.frecuencia, duracion: t.duracion}));
+  }else{
+    recAgregarItem();
+  }
+}
+function modalReceta(){
+  abrirModal('Nueva receta', `
+    <div class="field"><label>Consulta</label><select id="rec-consulta" onchange="recPrellenar()">${recConsultaOptions()}</select></div>
+    <div class="field"><label>Diagnóstico</label><input type="text" id="rec-diag" placeholder="Ej. Faringitis aguda"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:4px 0 8px">
+      <label style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">Medicamentos</label>
+      <button type="button" class="btn btn-sm" onclick="recAgregarItem()">＋ Agregar medicamento</button>
+    </div>
+    <div id="rec-items"></div>
+    <div class="field" style="margin-top:6px"><label>Indicaciones generales</label><textarea id="rec-ind" placeholder="Reposo, hidratación…"></textarea></div>
+  `, `<button class="btn" onclick="cerrarModal()">Cancelar</button><button class="btn btn-green" onclick="emitirReceta()">Emitir receta</button>`);
+  recAgregarItem();
+}
+async function emitirReceta(){
+  const items = [];
+  document.querySelectorAll('#rec-items .rec-row').forEach(row => {
+    const med = (row.querySelector('.ri-med').value || '').trim();
+    if(!med) return;
+    items.push({
+      medicamento: med,
+      dosis:        (row.querySelector('.ri-dosis').value || '').trim(),
+      frecuencia:   (row.querySelector('.ri-frec').value  || '').trim(),
+      duracion:     (row.querySelector('.ri-dur').value   || '').trim(),
+      indicaciones: (row.querySelector('.ri-ind').value   || '').trim()
+    });
+  });
+  if(!items.length){ alert('Agrega al menos un medicamento'); return; }
+  const payload = {
+    paciente_id: pid,
+    reserva_id:  val('rec-consulta') || null,
+    diagnostico: val('rec-diag'),
+    indicaciones: val('rec-ind'),
+    items
+  };
+  try{
+    const res  = await fetch(`${API}?action=medico_receta_crear`, {method:'POST', headers: authHeaders(), body: JSON.stringify(payload)});
+    const json = await res.json();
+    if(!json.ok){
+      if(res.status === 401 || res.status === 403){ alert(json.error || 'Sesión expirada'); location.href = '/medico-portal.html'; return; }
+      alert(json.error || 'No se pudo emitir la receta');
+      return;
+    }
+    cerrarModal();
+    await cargarExpediente();
+    if(json.data && json.data.id){ window.open('/receta.html?id=' + json.data.id, '_blank'); }
+  }catch(e){ alert('Error de conexión'); }
 }
 
 /* ===== Boot ===== */

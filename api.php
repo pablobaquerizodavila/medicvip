@@ -95,6 +95,8 @@ try {
         case 'medico_vitales_registrar':     medicoVitalesRegistrar();      break;
         case 'medico_documento_subir':       medicoDocumentoSubir();        break;
         case 'medico_documento_eliminar':    medicoDocumentoEliminar();     break;
+        case 'medico_receta_crear': medicoRecetaCrear(); break;
+        case 'receta_ver':          recetaVer();          break;
         case 'confirmar_consulta':   confirmarConsulta();    break;
         case 'procesar_reembolsos':  procesarReembolsos();   break;
         case 'admin_reembolso':      adminReembolso();       break;
@@ -798,6 +800,12 @@ function pacientePerfil(): void {
     $stT = $db->prepare('SELECT id,medicamento,dosis,frecuencia,via,duracion,fecha_inicio,estado,resultado,nota_cierre,fecha_cierre FROM tratamientos WHERE paciente_id=? ORDER BY creado_en DESC');
     $stT->bind_param('i', $pid); $stT->execute();
     $perfil['tratamientos'] = $stT->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stR = $db->prepare('SELECT id,fecha_emision,diagnostico,items,creado_en FROM recetas WHERE paciente_id=? ORDER BY creado_en DESC');
+    $stR->bind_param('i',$pid); $stR->execute();
+    $recsP = $stR->get_result()->fetch_all(MYSQLI_ASSOC);
+    foreach ($recsP as &$rp) { $arr=json_decode($rp['items']?:'[]',true); $rp['num_items']=is_array($arr)?count($arr):0; unset($rp['items']); $rp['folio']=recetaFolio($rp['id']); }
+    unset($rp);
+    $perfil['recetas'] = $recsP;
     jsonOk($perfil);
 }
 
@@ -893,6 +901,12 @@ function medicoExpediente(): void {
     $st->bind_param('i',$pid); $st->execute(); $out['documentos']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
     $st = $db->prepare('SELECT id,horario,estado_consulta,creado_en FROM reservas WHERE paciente_id=? AND medico_id=? ORDER BY creado_en DESC');
     $st->bind_param('ii',$pid,$medicoId); $st->execute(); $out['reservas']=$st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $st = $db->prepare('SELECT id,fecha_emision,diagnostico,items,creado_en FROM recetas WHERE paciente_id=? ORDER BY creado_en DESC');
+    $st->bind_param('i',$pid); $st->execute();
+    $recs = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    foreach ($recs as &$r) { $arr=json_decode($r['items']?:'[]',true); $r['num_items']=is_array($arr)?count($arr):0; unset($r['items']); $r['folio']=recetaFolio($r['id']); }
+    unset($r);
+    $out['recetas'] = $recs;
     jsonOk($out);
 }
 
@@ -971,6 +985,67 @@ function medicoDocumentoEliminar(): void {
     if (is_file($abs)) @unlink($abs);
     getDB()->query('DELETE FROM documentos WHERE id=' . $did);
     jsonOk(['mensaje'=>'Documento eliminado']);
+}
+
+// ── RECETAS ───────────────────────────────────────────────────────────────────
+function recetaFolio($id): string { return 'REC-' . str_pad((string)$id, 6, '0', STR_PAD_LEFT); }
+
+function medicoRecetaCrear(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $pid = (int)($data['paciente_id'] ?? 0); if (!$pid) jsonError('Falta paciente_id');
+    checkRelacionMedicoPaciente($medicoId, $pid);
+    $items = $data['items'] ?? null;
+    if (!is_array($items) || count($items) === 0) jsonError('La receta debe tener al menos un medicamento');
+    $limpios = [];
+    foreach ($items as $it) {
+        $med = trim((string)($it['medicamento'] ?? '')); if ($med === '') continue;
+        $limpios[] = [
+            'medicamento'  => mb_substr($med, 0, 200),
+            'dosis'        => mb_substr(trim((string)($it['dosis'] ?? '')), 0, 100),
+            'frecuencia'   => mb_substr(trim((string)($it['frecuencia'] ?? '')), 0, 100),
+            'duracion'     => mb_substr(trim((string)($it['duracion'] ?? '')), 0, 100),
+            'indicaciones' => mb_substr(trim((string)($it['indicaciones'] ?? '')), 0, 300),
+        ];
+        if (count($limpios) >= 30) break;
+    }
+    if (!count($limpios)) jsonError('La receta debe tener al menos un medicamento');
+    $rid = !empty($data['reserva_id']) ? (int)$data['reserva_id'] : null;
+    $diag = mb_substr(trim((string)($data['diagnostico'] ?? '')), 0, 2000);
+    $ind  = mb_substr(trim((string)($data['indicaciones'] ?? '')), 0, 2000);
+    $json = json_encode($limpios, JSON_UNESCAPED_UNICODE);
+    $db = getDB();
+    $st = $db->prepare('INSERT INTO recetas (paciente_id,medico_id,reserva_id,diagnostico,indicaciones,items) VALUES (?,?,?,?,?,?)');
+    $st->bind_param('iiisss', $pid, $medicoId, $rid, $diag, $ind, $json);
+    $st->execute();
+    $id = (int)$db->insert_id;
+    jsonOk(['id' => $id, 'folio' => recetaFolio($id)]);
+}
+
+function recetaVer(): void {
+    $data = json_decode(file_get_contents('php://input'), true);
+    $rid = (int)($data['receta_id'] ?? 0); if (!$rid) jsonError('Falta receta_id');
+    $rec = fetchOne(query('SELECT id,paciente_id,medico_id,diagnostico,indicaciones,items,fecha_emision FROM recetas WHERE id=?', 'i', [$rid]));
+    if (!$rec) jsonError('Receta no encontrada', 404);
+    if (!empty($_SERVER['HTTP_X_PACIENTE_TOKEN'])) {
+        $pidTok = checkPaciente();
+        if ((int)$rec['paciente_id'] !== $pidTok) jsonError('No autorizado', 403);
+    } else {
+        $medicoId = checkMedico();
+        checkRelacionMedicoPaciente($medicoId, (int)$rec['paciente_id']);
+    }
+    $pac = fetchOne(query('SELECT nombre,cedula,fecha_nacimiento,genero FROM pacientes WHERE id=?', 'i', [(int)$rec['paciente_id']]));
+    $med = fetchOne(query('SELECT CONCAT(m.titulo," ",m.nombre," ",m.apellido) AS nombre_completo, m.licencia, e.especialidad FROM medicos m LEFT JOIN medico_especialidad e ON e.medico_id=m.id WHERE m.id=?', 'i', [(int)$rec['medico_id']]));
+    $edad = null;
+    if (!empty($pac['fecha_nacimiento'])) { try { $edad = (new DateTime($pac['fecha_nacimiento']))->diff(new DateTime('now'))->y; } catch (Exception $e) {} }
+    jsonOk([
+        'folio' => recetaFolio($rec['id']),
+        'fecha_emision' => $rec['fecha_emision'],
+        'diagnostico' => $rec['diagnostico'],
+        'indicaciones' => $rec['indicaciones'],
+        'items' => json_decode($rec['items'] ?: '[]', true),
+        'paciente' => ['nombre'=>$pac['nombre']??'', 'cedula'=>$pac['cedula']??'', 'fecha_nacimiento'=>$pac['fecha_nacimiento']??null, 'genero'=>$pac['genero']??'', 'edad'=>$edad],
+        'medico' => ['nombre_completo'=>$med['nombre_completo']??'', 'especialidad'=>$med['especialidad']??'', 'licencia'=>$med['licencia']??''],
+    ]);
 }
 
 // ── CONFIRMAR CONSULTA ────────────────────────────────────────────────────────
