@@ -160,6 +160,7 @@
       <div class="nav-item active" onclick="showSection('dashboard',this)"><span class="nav-icon">🏠</span> Inicio</div>
       <div class="nav-item" onclick="showSection('perfil',this)"><span class="nav-icon">👤</span> Mi perfil</div>
       <div class="nav-item" onclick="showSection('reservas',this)"><span class="nav-icon">📅</span> Mis reservas</div>
+      <div class="nav-item" onclick="showSection('agenda',this); loadAgenda()"><span class="nav-icon">📅</span> Agenda</div>
       <div class="nav-item" onclick="showSection('pacientes',this); loadPacientes()"><span class="nav-icon">👥</span> Pacientes</div>
       <div class="nav-item" onclick="showSection('pagos',this); loadPagos()"><span class="nav-icon">💰</span> Mis pagos</div>
       <div class="nav-item" onclick="showSection('resenas',this); loadMedicoResenas()"><span class="nav-icon">⭐</span> Mis reseñas</div>
@@ -265,6 +266,19 @@
       <p class="page-sub">Consultas agendadas por tus pacientes</p>
       <div id="reservas-container"><div class="loading">Cargando...</div></div>
     </div>
+
+    <section id="section-agenda" class="section">
+      <div class="page-title">📅 Agenda</div>
+      <p class="page-sub">Vista semanal de tus horarios: libres, reservados y bloqueados.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+        <button class="btn" onclick="agSemana(-1)">← Semana anterior</button>
+        <span id="ag-rango" style="font-size:14px;font-weight:500;min-width:200px;text-align:center">—</span>
+        <button class="btn" onclick="agSemana(1)">Semana siguiente →</button>
+        <button class="btn" style="margin-left:auto;background:#C0392B;color:#fff;border-color:#C0392B" onclick="abrirBloqueoModal()">🚫 Bloquear días</button>
+      </div>
+      <div id="agenda-grid"><div class="loading">Cargando...</div></div>
+      <div id="agenda-bloqueos"></div>
+    </section>
 
     <div class="section" id="section-pagos">
       <div class="page-title">Mis pagos</div>
@@ -791,6 +805,121 @@ async function confirmarConsulta(reservaId) {
       alert('Error: ' + json.error);
     }
   } catch(e) { alert('No se pudo conectar con el servidor'); }
+}
+
+// ---- Agenda semanal ----
+const AG_DIAS  = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const AG_CORTO = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+let _agSemana = 0;
+
+function agParseFecha(s){ const p=(s||'').split('-'); return new Date(+p[0], (+p[1])-1, +p[2]); }
+function agFmtFecha(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function agSumaMin(hora, mins){
+  const p=(hora||'0:0').split(':'); const tot=(+p[0])*60+(+p[1])+mins;
+  return String(Math.floor(tot/60)%24).padStart(2,'0')+':'+String(tot%60).padStart(2,'0');
+}
+
+async function loadAgenda(){
+  const grid = document.getElementById('agenda-grid');
+  grid.innerHTML = '<div class="loading">Cargando...</div>';
+  try {
+    const r = await fetch(API + '?action=medico_agenda', {method:'POST', headers: authHeaders(), body: JSON.stringify({semana:_agSemana})});
+    const j = await r.json();
+    if(!j.ok){ grid.innerHTML='<div class="empty"><div class="empty-icon">⚠️</div>Error al cargar la agenda.</div>'; return; }
+    renderAgenda(j.data);
+  } catch(e){ grid.innerHTML='<div class="empty"><div class="empty-icon">⚠️</div>Error de conexión.</div>'; }
+}
+function agSemana(delta){ _agSemana += delta; loadAgenda(); }
+
+function renderAgenda(d){
+  document.getElementById('ag-rango').textContent = 'Semana del '+d.desde+' al '+d.hasta;
+  const lunes = agParseFecha(d.desde);
+  const dur   = parseInt(d.duracion,10) || 30;
+  let cols = '';
+  for(let i=0;i<7;i++){
+    const fecha = new Date(lunes.getFullYear(), lunes.getMonth(), lunes.getDate()+i);
+    const fechaStr = agFmtFecha(fecha);
+    const nombre = AG_DIAS[i];
+    const encFecha = String(fecha.getDate()).padStart(2,'0')+'/'+String(fecha.getMonth()+1).padStart(2,'0');
+    const slots = (d.plantilla||[]).filter(p=>p.dia_semana===nombre).sort((a,b)=> a.hora>b.hora?1:(a.hora<b.hora?-1:0));
+    let celdas;
+    if(!slots.length){
+      celdas = '<div style="text-align:center;color:var(--muted);font-size:13px;padding:14px 6px">—</div>';
+    } else {
+      celdas = slots.map(s=>{
+        const hora  = (s.hora||'').slice(0,5);
+        const fin   = agSumaMin(hora, dur);
+        const rango = hora+'–'+fin;
+        const bloq  = (d.bloqueos||[]).some(b=> b.fecha_desde<=fechaStr && b.fecha_hasta>=fechaStr);
+        if(bloq){
+          return '<div style="background:#EDEDED;color:#666;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">🚫 Bloqueado<div style="font-size:11px;opacity:.85">'+rango+'</div></div>';
+        }
+        const cita = (d.citas||[]).find(c=>{
+          if(!c.inicio) return false;
+          const dt=String(c.inicio).replace('T',' ').split(' ');
+          return dt[0]===fechaStr && (dt[1]||'').slice(0,5)===hora;
+        });
+        if(cita){
+          return '<div style="background:#E6F1FB;color:#185FA5;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">'+
+            '<div style="font-weight:600">'+rango+'</div>'+
+            '<div style="color:var(--ink)">👤 '+(cita.paciente||'Paciente')+'</div>'+
+            '<a onclick="window.open(\'/expediente-paciente.html?paciente='+cita.paciente_id+'\',\'_blank\')" style="color:#1565C0;cursor:pointer;text-decoration:underline;font-size:11px">Expediente</a>'+
+          '</div>';
+        }
+        return '<div style="border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12px">'+rango+'<div style="font-size:11px">Libre</div></div>';
+      }).join('');
+    }
+    cols += '<div style="flex:1;min-width:130px;border-right:1px solid var(--border);padding:0 8px">'+
+      '<div style="text-align:center;font-weight:600;font-size:13px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:8px">'+AG_CORTO[i]+' '+encFecha+'</div>'+
+      celdas+'</div>';
+  }
+  document.getElementById('agenda-grid').innerHTML =
+    '<div style="overflow-x:auto"><div style="display:flex;min-width:700px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius);padding:8px 0">'+cols+'</div></div>';
+  renderBloqueos(d.bloqueos||[]);
+}
+
+function renderBloqueos(bloqueos){
+  const cont = document.getElementById('agenda-bloqueos');
+  if(!bloqueos.length){
+    cont.innerHTML = '<div class="card" style="margin-top:20px"><div class="card-title">Días bloqueados</div><div style="color:var(--muted);font-size:13px">No hay días bloqueados.</div></div>';
+    return;
+  }
+  cont.innerHTML = '<div class="card" style="margin-top:20px"><div class="card-title">Días bloqueados</div>'+
+    bloqueos.map(b=>'<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);flex-wrap:wrap">'+
+      '<div style="flex:1;min-width:180px;font-size:13px">🚫 <strong>'+b.fecha_desde+'</strong> → <strong>'+b.fecha_hasta+'</strong>'+(b.motivo?' <span style="color:var(--muted)">· '+b.motivo+'</span>':'')+'</div>'+
+      '<button class="btn" style="font-size:12px;padding:6px 14px;border-color:#C0392B;color:#C0392B" onclick="quitarBloqueo('+b.id+')">Quitar</button>'+
+    '</div>').join('')+'</div>';
+}
+
+async function quitarBloqueo(id){
+  if(!confirm('¿Quitar este bloqueo?')) return;
+  try {
+    const r = await fetch(API + '?action=medico_bloqueo_eliminar', {method:'POST', headers: authHeaders(), body: JSON.stringify({bloqueo_id:id})});
+    const j = await r.json();
+    if(!j.ok){ alert(j.error||'Error'); return; }
+    loadAgenda();
+  } catch(e){ alert('Error de conexión'); }
+}
+
+function abrirBloqueoModal(){
+  mostrarModalPortal('Bloquear días', ''+
+    '<label style="font-size:13px;color:var(--muted)">Desde</label>'+
+    '<input type="date" id="bloq-desde" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;box-sizing:border-box">'+
+    '<label style="font-size:13px;color:var(--muted)">Hasta</label>'+
+    '<input type="date" id="bloq-hasta" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;box-sizing:border-box">'+
+    '<label style="font-size:13px;color:var(--muted)">Motivo (opcional)</label>'+
+    '<input type="text" id="bloq-motivo" placeholder="Ej: Vacaciones" style="width:100%;padding:9px;border:1px solid var(--border);border-radius:8px;margin-bottom:14px;box-sizing:border-box">'+
+    '<button onclick="crearBloqueo()" style="background:#1d9e75;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer">Bloquear</button>');
+}
+async function crearBloqueo(){
+  const desde=document.getElementById('bloq-desde').value, hasta=document.getElementById('bloq-hasta').value, motivo=document.getElementById('bloq-motivo').value;
+  if(!desde||!hasta){ alert('Elige fecha desde y hasta'); return; }
+  try {
+    const r = await fetch(API + '?action=medico_bloqueo_crear', {method:'POST', headers: authHeaders(), body: JSON.stringify({fecha_desde:desde, fecha_hasta:hasta, motivo})});
+    const j = await r.json();
+    if(!j.ok){ alert(j.error||'Error'); return; }
+    cerrarModalPortal && cerrarModalPortal(); loadAgenda();
+  } catch(e){ alert('Error de conexión'); }
 }
 
 // ---- Historial clínico y notas ----

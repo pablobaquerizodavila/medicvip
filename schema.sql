@@ -144,7 +144,9 @@ CREATE TABLE `reservas` (
   `sala_video` varchar(64) DEFAULT NULL,
   `token_acceso` varchar(32) DEFAULT NULL,
   `recordatorio_enviado` tinyint(1) DEFAULT 0,
-  PRIMARY KEY (`id`)
+  `inicio` datetime DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_medico_inicio` (`medico_id`,`inicio`)
 ) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `transacciones`;
@@ -311,6 +313,18 @@ CREATE TABLE `recetas` (
   PRIMARY KEY (`id`),
   KEY `idx_paciente` (`paciente_id`),
   CONSTRAINT `fk_receta_paciente` FOREIGN KEY (`paciente_id`) REFERENCES `pacientes` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `medico_bloqueos`;
+CREATE TABLE `medico_bloqueos` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `medico_id` int(10) unsigned NOT NULL,
+  `fecha_desde` date NOT NULL,
+  `fecha_hasta` date NOT NULL,
+  `motivo` varchar(200) DEFAULT NULL,
+  `creado_en` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_medico` (`medico_id`),
+  CONSTRAINT `fk_bloqueo_medico` FOREIGN KEY (`medico_id`) REFERENCES `medicos` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `v_medicos_activos`;

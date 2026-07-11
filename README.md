@@ -339,6 +339,7 @@ Para crear un sitio nuevo similar (otro dominio):
 - [x] **Fase 6H — Toggle "disponible para emergencias"** en el portal médico
 - [x] **Fase 6I — Cron de recordatorios** diarios (8:30 AM via /etc/crontab)
 - [ ] **Fase 6J — Mejoras de UI/UX** y flujo móvil
+- [x] **Fase 7 — Agenda por fechas** (reservas con `inicio` datetime + tabla `medico_bloqueos`): el paciente agenda un horario con fecha concreta (ventana 4 semanas, slots agrupados por día con rango según `duracion_minutos`); la misma hora semanal se reabre cada semana; sin doble-reserva del mismo `inicio`. El médico tiene sección **📅 Agenda** (grid semanal Lun–Dom con Libre/Reservado/Bloqueado) y puede **bloquear rangos de fechas** (vacaciones). Cards muestran "Próximo disponible".
 
 ---
 

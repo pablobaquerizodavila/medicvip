@@ -339,6 +339,7 @@ async function loadDoctors() {
         bio:      m.biografia || '',
         foto:     m.foto_perfil || null,
         slots:    m.disponibilidad || [],
+        proximo_disponible: m.proximo_disponible,
         languages: m.idiomas || 'Español',
         universidad: m.universidad || null,
         postgrado:   m.postgrado   || null,
@@ -356,7 +357,6 @@ async function loadDoctors() {
 
 let activeSpec = 'Todos';
 let maxPrice = 100;
-let selectedSlots = {};
 
 function setSpec(spec, el) {
   activeSpec = spec;
@@ -432,10 +432,7 @@ function renderDoctors(list) {
         <div class="dc-spec">${d.exp?d.exp+' de experiencia · ':''} ${d.city}</div>
         <div class="dc-meta"><div class="dc-meta-item">🗣 ${d.languages}</div></div>
         <p class="dc-bio">${d.bio}</p>
-        ${d.slots.length ? `
-          <div class="dc-slots-label">Próximos horarios disponibles</div>
-          <div class="dc-slots">${d.slots.slice(0,5).map(s=>`<button class="slot-btn${selectedSlots[d.id]===s?' picked':''}" onclick="pickSlot(${d.id},'${s}',this)">${s}</button>`).join('')}</div>
-        ` : '<div style="font-size:13px;color:var(--muted)">Sin horarios disponibles por el momento</div>'}
+        <div style="font-size:13px;color:var(--muted)">Próximo disponible: <strong style="color:var(--ink)">${d.proximo_disponible || 'Consultar horarios'}</strong></div>
       </div>
       <div class="dc-actions">
         <div class="dc-price">$${parseFloat(d.fee).toFixed(2)}<span>por consulta</span></div>
@@ -444,25 +441,25 @@ function renderDoctors(list) {
     </div>`).join('');
 }
 
-function pickSlot(docId, slot, el) {
-  selectedSlots[docId] = slot;
-  document.querySelectorAll(`#card-${docId} .slot-btn`).forEach(b => b.classList.remove('picked'));
-  el.classList.add('picked');
+let _slotInicio = null;
+let _slotLabel = null;
+function pickSlotFecha(inicio, label, el){
+  _slotInicio = inicio;
+  _slotLabel = label;
+  document.querySelectorAll('#modal-content .slot-btn').forEach(b=>b.classList.remove('picked'));
+  if(el) el.classList.add('picked');
+  var se=document.getElementById('slot-elegido'); if(se) se.textContent='Seleccionado: '+label;
 }
 
-function openBooking(docId) {
+async function openBooking(docId) {
   if (!PACIENTE_TOKEN) {
     if (confirm('Para agendar necesitas una cuenta. ¿Ir a iniciar sesión / registrarte?')) window.location.href = '/paciente-portal.html';
     return;
   }
   const d = DOCTORS.find(x => x.id === docId);
-  const slot = selectedSlots[docId] || d.slots[0];
-  document.getElementById('modal-content').innerHTML = `
-    <div class="modal-header">
-      <h2>Reservar consulta</h2>
-      <button class="modal-close" onclick="closeModal()">✕</button>
-    </div>
-    <div class="modal-body">
+  _slotInicio = null; _slotLabel = null;
+
+  const docInfoHtml = `
       <div class="modal-doc-info">
         <div class="modal-avatar ${d.av}">${d.name.split(' ').filter((_,i)=>i<2).map(w=>w[0]).join('')}</div>
         <div>
@@ -470,11 +467,66 @@ function openBooking(docId) {
           <div style="font-size:13px;color:var(--muted)">${d.spec} · ${d.city}</div>
           <div style="font-size:13px;margin-top:4px"><span class="star">★</span> ${d.rating} · ${d.reviews} reseñas</div>
         </div>
-      </div>
-      <div class="modal-slot-info">
-        <span style="font-size:20px">📅</span>
-        <div><strong>Horario seleccionado:</strong> ${slot}<br><span style="font-size:12px;opacity:.7">Consulta online · ~30 minutos</span></div>
-      </div>
+      </div>`;
+
+  // Modal de carga mientras se consultan los horarios
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">
+      <h2>Reservar consulta</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      ${docInfoHtml}
+      <div style="text-align:center;color:var(--muted);padding:24px">Cargando horarios disponibles...</div>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+
+  let slots = [];
+  try {
+    const r = await fetch('/api.php?action=horarios_disponibles', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({medico_id:docId})});
+    const j = await r.json();
+    slots = j.data || [];
+  } catch(e) { slots = []; }
+
+  if (!slots.length) {
+    document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">
+      <h2>Reservar consulta</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      ${docInfoHtml}
+      <div style="background:var(--cream);border-radius:10px;padding:18px 16px;font-size:14px;color:var(--muted);text-align:center">Este médico no tiene horarios disponibles en las próximas 4 semanas.</div>
+    </div>`;
+    return;
+  }
+
+  // Agrupar los horarios por día (conservando el orden de llegada)
+  const grupos = {}; const ordenFechas = [];
+  slots.forEach(s => {
+    if (!grupos[s.fecha]) { grupos[s.fecha] = []; ordenFechas.push(s.fecha); }
+    grupos[s.fecha].push(s);
+  });
+  const selectorHtml = ordenFechas.map(fecha => {
+    const arr = grupos[fecha];
+    const first = arr[0];
+    const encabezado = (first.label && first.label.indexOf('·') !== -1)
+      ? first.label.split('·')[0].trim()
+      : ((first.dia || '') + ' ' + fecha).trim();
+    const chips = arr.map(s => `<button class="slot-btn" onclick="pickSlotFecha('${s.inicio}', ${JSON.stringify(s.label).replace(/"/g,'&quot;')}, this)">${s.hora}–${s.fin}</button>`).join('');
+    return `<div style="margin-bottom:14px"><div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:8px">${encabezado}</div><div class="dc-slots">${chips}</div></div>`;
+  }).join('');
+
+  document.getElementById('modal-content').innerHTML = `
+    <div class="modal-header">
+      <h2>Reservar consulta</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      ${docInfoHtml}
+      <div style="font-size:11px;font-weight:500;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px">Elige un horario · próximas 4 semanas</div>
+      <div style="max-height:220px;overflow-y:auto;margin-bottom:8px">${selectorHtml}</div>
+      <div id="slot-elegido" style="font-size:13px;color:var(--green-dark);background:var(--green-light);border-radius:8px;padding:10px 14px;margin-bottom:16px">Selecciona un horario para continuar</div>
 
       <!-- Aviso pago al site -->
       <div style="background:#F1EFE8;border-radius:10px;padding:12px 16px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start">
@@ -524,8 +576,8 @@ function openBooking(docId) {
         </div>
         <div class="modal-total-amount">$${d.fee}</div>
       </div>
-      <button class="confirm-btn" id="btn-continuar-pago" onclick="showPaymentStep(${d.id},'${slot}')">Continuar al pago →</button>
-      <button class="confirm-btn" id="btn-cortesia-confirmar" style="display:none;opacity:.6" disabled onclick="confirmCortesia(${d.id},'${slot}')">Confirmar consulta de cortesía</button>
+      <button class="confirm-btn" id="btn-continuar-pago" onclick="showPaymentStep(${d.id})">Continuar al pago →</button>
+      <button class="confirm-btn" id="btn-cortesia-confirmar" style="display:none;opacity:.6" disabled onclick="confirmCortesia(${d.id})">Confirmar consulta de cortesía</button>
     </div>`;
   // toggle visual métodos de pago
   document.querySelectorAll('input[name=pay]').forEach(r => r.addEventListener('change', () => {
@@ -545,9 +597,9 @@ function openBooking(docId) {
 
 // Guardamos datos del step 1 en memoria para usar desde step 2
 let _bookingForm = {};
-function _captureForm(docId, slot) {
+function _captureForm(docId) {
   _bookingForm = {
-    docId, slot,
+    docId,
     nombre: PACIENTE_NOMBRE, email: '', tel: '', edad: '',
     motivo:   (document.getElementById('book-motivo')?.value || '').trim(),
     alergias: '',
@@ -556,9 +608,9 @@ function _captureForm(docId, slot) {
   return _bookingForm;
 }
 
-async function confirmBookingDesdeStep1(docId, slot) {
-  const form = _captureForm(docId, slot);
-  await _doConfirmBooking(docId, slot, form);
+async function confirmBookingDesdeStep1(docId) {
+  const form = _captureForm(docId);
+  await _doConfirmBooking(docId, form);
 }
 
 let _cortesiaValida = false;
@@ -595,15 +647,17 @@ async function validarCortesia(docId) {
   } catch(e) { _cortesiaValida=false; fb.style.color='#C0392B'; fb.textContent='Error de conexión'; }
   _actualizarBotonesPago();
 }
-async function confirmCortesia(docId, slot) {
-  const form = _captureForm(docId, slot);
+async function confirmCortesia(docId) {
+  if (!_slotInicio) { alert('Elige un horario disponible'); return; }
+  const form = _captureForm(docId);
   if (!_cortesiaValida) { alert('Ingresa y valida un código de cortesía primero.'); return; }
   form.codigo = document.getElementById('cortesia-codigo').value.trim().toUpperCase();
   form.metodo = 'cortesia';
-  await _doConfirmBooking(docId, slot, form);
+  await _doConfirmBooking(docId, form);
 }
 
-function showPaymentStep(docId, slot) {
+function showPaymentStep(docId) {
+  if (!_slotInicio) { alert('Elige un horario disponible'); return; }
   const d = DOCTORS.find(x => x.id === docId);
   document.getElementById('modal-content').innerHTML = `
     <div class="modal-header">
@@ -646,17 +700,18 @@ function showPaymentStep(docId, slot) {
         </div>
         <div class="modal-total-amount">$${d.fee}</div>
       </div>
-      <button class="confirm-btn" onclick="confirmBooking(${d.id},'${slot}')">Pagar y confirmar consulta</button>
+      <button class="confirm-btn" onclick="confirmBooking(${d.id})">Pagar y confirmar consulta</button>
     </div>`;
 }
 
-async function confirmBooking(docId, slot) {
+async function confirmBooking(docId) {
   // Desde step 2: leer form del step 2 (solo datos de tarjeta son nuevos, el resto vino del step 1)
-  const form = _bookingForm.docId === docId ? _bookingForm : _captureForm(docId, slot);
-  await _doConfirmBooking(docId, slot, form);
+  const form = _bookingForm.docId === docId ? _bookingForm : _captureForm(docId);
+  await _doConfirmBooking(docId, form);
 }
 
-async function _doConfirmBooking(docId, slot, form) {
+async function _doConfirmBooking(docId, form) {
+  if (!_slotInicio) { alert('Elige un horario disponible'); return; }
   const d = DOCTORS.find(x => x.id === docId);
 
   // Deshabilitar todos los botones de acción
@@ -667,7 +722,7 @@ async function _doConfirmBooking(docId, slot, form) {
       method: 'POST',
       headers: pacienteAuthHeaders(),
       body: JSON.stringify({
-        medico_id: d.id, horario: slot,
+        medico_id: d.id, inicio: _slotInicio,
         motivo: form.motivo, alergias: form.alergias,
         metodo_pago: form.metodo || 'card',
         codigo: form.codigo || null
@@ -689,7 +744,7 @@ async function _doConfirmBooking(docId, slot, form) {
         <div class="success-detail">
           <div class="success-detail-row"><span>Médico</span><span>${d.name}</span></div>
           <div class="success-detail-row"><span>Especialidad</span><span>${d.spec}</span></div>
-          <div class="success-detail-row"><span>Horario</span><span>${slot}</span></div>
+          <div class="success-detail-row"><span>Horario</span><span>${_slotLabel || ''}</span></div>
           <div class="success-detail-row"><span>${esCortesia?'Modalidad':'Total pagado'}</span><span>${esCortesia?'🎗️ Cortesía (gratis)':'$'+d.fee+' USD'}</span></div>
           <div class="success-detail-row"><span>N° de reserva</span><span style="font-weight:700;color:var(--green)">#${reservaId}</span></div>
           <div class="success-detail-row"><span>Código de acceso</span><span style="font-weight:700;color:var(--green);font-family:monospace;font-size:15px;letter-spacing:1px">${tokenAcceso}</span></div>

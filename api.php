@@ -63,6 +63,10 @@ try {
         case 'registro_medico':      registrarMedico();      break;
         case 'listar_medicos':       listarMedicos();        break;
         case 'reservar':             crearReserva();         break;
+        case 'horarios_disponibles':    horariosDisponibles();    break;
+        case 'medico_agenda':           medicoAgenda();           break;
+        case 'medico_bloqueo_crear':    medicoBloqueoCrear();     break;
+        case 'medico_bloqueo_eliminar': medicoBloqueoEliminar();  break;
         case 'admin_login':          adminLogin();           break;
         case 'admin_medicos':        adminMedicos();         break;
         case 'admin_eliminar':       adminEliminar();        break;
@@ -173,18 +177,15 @@ function listarMedicos(): void {
     $db = getDB();
     $sd = $db->prepare('SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1 ORDER BY FIELD(dia_semana,"Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"),hora');
     $sr = $db->prepare('SELECT COUNT(*) AS total, IFNULL(ROUND(AVG(estrellas),2),0) AS promedio FROM resenas WHERE medico_id=?');
-    $sh = $db->prepare("SELECT horario FROM reservas WHERE medico_id=? AND estado_consulta='agendada'");
     foreach ($medicos as &$m) {
         $sd->bind_param('i',$m['id']); $sd->execute();
         $slots=$sd->get_result()->fetch_all(MYSQLI_ASSOC);
         $m['disponibilidad']=array_map(fn($s)=>$s['dia_semana'].' '.$s['hora'],$slots);
-        $sh->bind_param('i',$m['id']); $sh->execute();
-        $ocupados=array_column($sh->get_result()->fetch_all(MYSQLI_ASSOC),'horario');
-        if ($ocupados) $m['disponibilidad']=array_values(array_diff($m['disponibilidad'],$ocupados));
         $sr->bind_param('i',$m['id']); $sr->execute();
         $stats=$sr->get_result()->fetch_assoc();
         $m['total_resenas']     = (int)($stats['total'] ?? 0);
         $m['estrella_promedio'] = (float)($stats['promedio'] ?? 0);
+        $sl=generarSlotsDisponibles($m['id'],28); $m['proximo_disponible']=$sl?$sl[0]['label']:null;
     }
     jsonOk($medicos);
 }
@@ -192,14 +193,23 @@ function listarMedicos(): void {
 // ── CREAR RESERVA ─────────────────────────────────────────────────────────────
 function crearReserva(): void {
     $data = json_decode(file_get_contents('php://input'), true) ?: $_POST;
-    foreach (['medico_id','horario','metodo_pago'] as $f)
+    foreach (['medico_id','inicio','metodo_pago'] as $f)
         if (empty($data[$f])) throw new Exception("Campo requerido: $f");
 
     $pacienteId = checkPaciente();
     $db  = getDB();
-    // No permitir doble reserva del mismo médico a la misma hora (mientras haya una cita pendiente)
-    if (fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND horario=? AND estado_consulta='agendada' LIMIT 1", 'is', [(int)$data['medico_id'], (string)$data['horario']])))
-        throw new Exception('Ese horario ya está reservado con este médico. Por favor elige otro.');
+    $inicioVal = (string)($data['inicio'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $inicioVal)) throw new Exception('Fecha/hora inválida.');
+    $its = strtotime($inicioVal);
+    if ($its === false || $its <= time()) throw new Exception('Ese horario ya pasó, elige otro.');
+    if ($its > strtotime('+29 days')) throw new Exception('Solo puedes agendar hasta 4 semanas adelante.');
+    $fechaCita = substr($inicioVal, 0, 10);
+    if (fetchOne(query('SELECT id FROM medico_bloqueos WHERE medico_id=? AND ? BETWEEN fecha_desde AND fecha_hasta LIMIT 1','is',[(int)$data['medico_id'],$fechaCita])))
+        throw new Exception('Ese día no está disponible.');
+    if (fetchOne(query("SELECT id FROM reservas WHERE medico_id=? AND inicio=? AND estado_consulta='agendada' LIMIT 1",'is',[(int)$data['medico_id'],$inicioVal])))
+        throw new Exception('Ese horario ya fue tomado. Elige otro.');
+    $_dAbr = ['Mon'=>'Lun','Tue'=>'Mar','Wed'=>'Mié','Thu'=>'Jue','Fri'=>'Vie','Sat'=>'Sáb','Sun'=>'Dom'];
+    $data['horario'] = $_dAbr[date('D',$its)].' '.date('d/m',$its).' '.date('H:i',$its);
     $pac = fetchOne(query('SELECT nombre,email FROM pacientes WHERE id=?','i',[$pacienteId]));
     $data['nombre_paciente'] = $pac['nombre'];
     $data['email_paciente']  = $pac['email'];
@@ -249,9 +259,9 @@ function crearReserva(): void {
     $salaVideo   = 'medicnet-' . bin2hex(random_bytes(10));
     $tokenAcceso = strtoupper(substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4) . '-' . substr(bin2hex(random_bytes(4)),0,4));
 
-    $stmt = $db->prepare('INSERT INTO reservas (medico_id,paciente_id,horario,motivo,alergias,metodo_pago,monto_total,comision,monto_medico,estado_pago,limite_confirmacion,sala_video,token_acceso) VALUES (?,?,?,?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 24 HOUR),?,?)');
+    $stmt = $db->prepare('INSERT INTO reservas (medico_id,paciente_id,horario,inicio,motivo,alergias,metodo_pago,monto_total,comision,monto_medico,estado_pago,limite_confirmacion,sala_video,token_acceso) VALUES (?,?,?,?,?,?,?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 24 HOUR),?,?)');
     if (!$stmt) { if ($esCortesia) $db->rollback(); throw new Exception('Prepare reservas: '.$db->error); }
-    $stmt->bind_param('iissssdddsss',$medicoId,$pacienteId,$data['horario'],$motivo,$alergias,$data['metodo_pago'],$total,$comision,$neto,$estadoPago,$salaVideo,$tokenAcceso);
+    $stmt->bind_param('iisssssdddsss',$medicoId,$pacienteId,$data['horario'],$inicioVal,$motivo,$alergias,$data['metodo_pago'],$total,$comision,$neto,$estadoPago,$salaVideo,$tokenAcceso);
     if (!$stmt->execute()) { if ($esCortesia) $db->rollback(); throw new Exception('Execute reservas: '.$stmt->error); }
     $reservaId = (int)$db->insert_id;
     if (!$reservaId) { if ($esCortesia) $db->rollback(); throw new Exception('insert_id=0 — revisar permisos INSERT en tabla reservas'); }
@@ -298,6 +308,88 @@ function crearReserva(): void {
         ]);
     }
     jsonOk(['reserva_id'=>$reservaId,'sala_video'=>$salaVideo,'monto_total'=>$total,'mensaje'=>'Reserva creada exitosamente.']);
+}
+
+// ── AGENDA / SLOTS ────────────────────────────────────────────────────────────
+function generarSlotsDisponibles(int $medicoId, int $dias = 28): array {
+    $db = getDB();
+    $st = $db->prepare("SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1");
+    $st->bind_param('i',$medicoId); $st->execute();
+    $plantilla = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    if (!$plantilla) return [];
+    $pago = fetchOne(query('SELECT duracion_minutos FROM medico_pago WHERE medico_id=?','i',[$medicoId]));
+    $dur = $pago ? (int)$pago['duracion_minutos'] : 30; if ($dur <= 0) $dur = 30;
+    $sb = $db->prepare("SELECT fecha_desde,fecha_hasta FROM medico_bloqueos WHERE medico_id=?");
+    $sb->bind_param('i',$medicoId); $sb->execute();
+    $bloqueos = $sb->get_result()->fetch_all(MYSQLI_ASSOC);
+    $so = $db->prepare("SELECT inicio FROM reservas WHERE medico_id=? AND estado_consulta='agendada' AND inicio IS NOT NULL");
+    $so->bind_param('i',$medicoId); $so->execute();
+    $ocupSet = array_flip(array_column($so->get_result()->fetch_all(MYSQLI_ASSOC),'inicio'));
+    $map = [1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado',7=>'Domingo'];
+    $mAbr = [1=>'ene',2=>'feb',3=>'mar',4=>'abr',5=>'may',6=>'jun',7=>'jul',8=>'ago',9=>'sep',10=>'oct',11=>'nov',12=>'dic'];
+    $dAbr = ['Lunes'=>'Lun','Martes'=>'Mar','Miércoles'=>'Mié','Jueves'=>'Jue','Viernes'=>'Vie','Sábado'=>'Sáb','Domingo'=>'Dom'];
+    $ahora = time(); $slots = [];
+    for ($d = 0; $d < $dias; $d++) {
+        $ts = strtotime("+$d day", $ahora); $fecha = date('Y-m-d',$ts); $diaNom = $map[(int)date('N',$ts)];
+        $blocked = false; foreach ($bloqueos as $b) { if ($fecha >= $b['fecha_desde'] && $fecha <= $b['fecha_hasta']) { $blocked = true; break; } }
+        if ($blocked) continue;
+        foreach ($plantilla as $p) {
+            if ($p['dia_semana'] !== $diaNom) continue;
+            $hora = substr($p['hora'],0,5);
+            $inicio = $fecha.' '.$hora.':00';
+            $its = strtotime($inicio);
+            if ($its <= $ahora || isset($ocupSet[$inicio])) continue;
+            $fin = date('H:i', $its + $dur*60);
+            $slots[] = ['fecha'=>$fecha,'dia'=>$diaNom,'hora'=>$hora,'fin'=>$fin,'duracion'=>$dur,'inicio'=>$inicio,
+                'label'=>$dAbr[$diaNom].' '.(int)date('j',$ts).' '.$mAbr[(int)date('n',$ts)].' · '.$hora.'–'.$fin];
+        }
+    }
+    usort($slots, fn($a,$b)=>strcmp($a['inicio'],$b['inicio']));
+    return $slots;
+}
+
+function horariosDisponibles(): void {
+    $data = json_decode(file_get_contents('php://input'), true) ?: [];
+    $mid = (int)($data['medico_id'] ?? ($_GET['medico_id'] ?? 0));
+    if (!$mid) jsonError('Falta medico_id');
+    jsonOk(generarSlotsDisponibles($mid, 28));
+}
+
+function medicoAgenda(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true) ?: [];
+    $semana = (int)($data['semana'] ?? 0);
+    $lunesTs = strtotime('monday this week', strtotime(($semana*7).' days'));
+    $desde = date('Y-m-d',$lunesTs); $hasta = date('Y-m-d', strtotime('+6 days',$lunesTs));
+    $db = getDB();
+    $st = $db->prepare("SELECT dia_semana,hora FROM medico_disponibilidad WHERE medico_id=? AND activo=1");
+    $st->bind_param('i',$medicoId); $st->execute(); $plantilla = $st->get_result()->fetch_all(MYSQLI_ASSOC);
+    $pago = fetchOne(query('SELECT duracion_minutos FROM medico_pago WHERE medico_id=?','i',[$medicoId]));
+    $dur = $pago ? (int)$pago['duracion_minutos'] : 30; if ($dur <= 0) $dur = 30;
+    $sc = $db->prepare("SELECT r.id AS reserva_id, r.inicio, r.paciente_id, p.nombre AS paciente, r.estado_consulta, r.motivo FROM reservas r JOIN pacientes p ON p.id=r.paciente_id WHERE r.medico_id=? AND r.inicio IS NOT NULL AND DATE(r.inicio) BETWEEN ? AND ? ORDER BY r.inicio");
+    $sc->bind_param('iss',$medicoId,$desde,$hasta); $sc->execute(); $citas = $sc->get_result()->fetch_all(MYSQLI_ASSOC);
+    $sbl = $db->prepare("SELECT id,fecha_desde,fecha_hasta,motivo FROM medico_bloqueos WHERE medico_id=? AND fecha_desde<=? AND fecha_hasta>=? ORDER BY fecha_desde");
+    $sbl->bind_param('iss',$medicoId,$hasta,$desde); $sbl->execute(); $bloqueos = $sbl->get_result()->fetch_all(MYSQLI_ASSOC);
+    jsonOk(['desde'=>$desde,'hasta'=>$hasta,'duracion'=>$dur,'plantilla'=>$plantilla,'citas'=>$citas,'bloqueos'=>$bloqueos]);
+}
+
+function medicoBloqueoCrear(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $d = (string)($data['fecha_desde'] ?? ''); $h = (string)($data['fecha_hasta'] ?? '');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/',$h)) jsonError('Fechas inválidas');
+    if ($h < $d) jsonError('La fecha "hasta" no puede ser menor que "desde"');
+    $motivo = mb_substr(trim((string)($data['motivo'] ?? '')), 0, 200);
+    $db = getDB(); $st = $db->prepare('INSERT INTO medico_bloqueos (medico_id,fecha_desde,fecha_hasta,motivo) VALUES (?,?,?,?)');
+    $st->bind_param('isss',$medicoId,$d,$h,$motivo); $st->execute();
+    jsonOk(['id'=>(int)$db->insert_id,'mensaje'=>'Días bloqueados']);
+}
+
+function medicoBloqueoEliminar(): void {
+    $medicoId = checkMedico(); $data = json_decode(file_get_contents('php://input'), true);
+    $id = (int)($data['bloqueo_id'] ?? 0); if (!$id) jsonError('Falta bloqueo_id');
+    $db = getDB(); $st = $db->prepare('DELETE FROM medico_bloqueos WHERE id=? AND medico_id=?');
+    $st->bind_param('ii',$id,$medicoId); $st->execute();
+    if ($db->affected_rows < 1) jsonError('Bloqueo no encontrado');
+    jsonOk(['mensaje'=>'Bloqueo eliminado']);
 }
 
 // ── EMAIL ─────────────────────────────────────────────────────────────────────
