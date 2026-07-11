@@ -20,6 +20,9 @@ Hoy una reserva guarda un **string** de slot semanal (`horario` = "Lunes 16:00")
 | Vista de agenda del médico | **Calendario semanal (grid)** con navegación semana anterior/siguiente. |
 | Bloqueos/excepciones | **Sí**: el médico puede bloquear rangos de fechas (vacaciones). |
 | Plantilla de disponibilidad | Se mantiene `medico_disponibilidad` (semanal) como fuente; se **proyecta** a fechas. |
+| Semana del calendario | Lunes → Domingo. |
+| Duración de la cita | Se usa `medico_pago.duracion_minutos` (que el médico configura: 20/30/… min). Los slots se muestran como **rango** (ej. 16:00–16:30). La duración debe ser **editable** en el perfil del médico. |
+| Reservas legadas | Se **limpian** las reservas de prueba (string sin `inicio`) para empezar la agenda limpia. |
 
 ---
 
@@ -59,7 +62,8 @@ Helper `generarSlotsDisponibles(int $medicoId, int $dias = 28): array`:
 - Lee los `inicio` ya reservados: `SELECT inicio FROM reservas WHERE medico_id=? AND estado_consulta='agendada' AND inicio IS NOT NULL`.
 - Mapa de día de semana: `date('N')` → `[1=>'Lunes',2=>'Martes',3=>'Miércoles',4=>'Jueves',5=>'Viernes',6=>'Sábado',7=>'Domingo']` (con acentos, para casar con el enum).
 - Para cada día desde hoy hasta `+$dias`: para cada slot de la plantilla que caiga en ese día de semana, construir `inicio = fecha + ' ' + hora + ':00'`. Incluir si: `inicio` es **futuro** (> ahora), la fecha **no** cae en un rango bloqueado, y el `inicio` **no** está ya reservado.
-- Devolver `[{fecha:'2026-07-14', dia:'Lunes', hora:'16:00', inicio:'2026-07-14 16:00:00', label:'Lun 14 jul · 16:00'}, ...]` ordenado cronológicamente.
+- Cada slot incluye la **duración** del médico (`medico_pago.duracion_minutos`, default 30) y la hora fin calculada (`fin = hora + duracion`).
+- Devolver `[{fecha:'2026-07-14', dia:'Lunes', hora:'16:00', fin:'16:30', duracion:30, inicio:'2026-07-14 16:00:00', label:'Lun 14 jul · 16:00–16:30'}, ...]` ordenado cronológicamente.
 
 ---
 
@@ -112,7 +116,9 @@ Quitar el filtro de "ocultar horas ocupadas" agregado antes (ya no aplica: la oc
   - **Libre**: celda tenue "Libre".
 - Navegación **← semana anterior / semana siguiente →** (mueve `semana`), y un indicador del rango de fechas.
 - **Gestión de bloqueos:** botón "Bloquear días" (modal: desde, hasta, motivo → `medico_bloqueo_crear`) y lista de bloqueos activos con "Quitar" (`medico_bloqueo_eliminar`).
-- Datos vía `medico_agenda(semana)`.
+- Cada celda/slot muestra el **rango horario** (ej. 16:00–16:30) según `duracion_minutos`.
+- Datos vía `medico_agenda(semana)` (incluir `duracion_minutos` en la respuesta).
+- **Duración de la consulta:** verificar que en **"Mi perfil"** del portal médico exista el campo **duración (minutos)** editable (viene de `medico_pago.duracion_minutos`, ya soportado por `medico_actualizar`). Si no está expuesto en la UI, agregarlo (select 15/20/30/45/60 min).
 
 ### `index.html`
 - En los cards de médicos destacados, mostrar "Próximo disponible: {label}" si `proximo_disponible` viene (sino, "Agenda disponible").
@@ -121,7 +127,7 @@ Quitar el filtro de "ocultar horas ocupadas" agregado antes (ya no aplica: la oc
 
 ## Compatibilidad y migración
 
-- No se borran reservas existentes; las de string sin `inicio` quedan como legado (test data).
+- **Limpieza:** borrar las reservas de prueba legadas (las que tienen `horario` string y `inicio` NULL) para empezar la agenda limpia — `DELETE FROM reservas WHERE inicio IS NULL` tras aplicar la migración (son datos de prueba pre-lanzamiento).
 - `reservar_emergencia` NO cambia (es inmediata, no usa slots con fecha).
 - Los crons (recordatorios/reembolsos) siguen usando `limite_confirmacion`; sin cambios.
 
